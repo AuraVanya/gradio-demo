@@ -1,15 +1,13 @@
 import os
 import boto3
-import gradio as gr
 import json
 from datetime import datetime
 from dotenv import load_dotenv
-from textractor import Textractor
-from textractor.data.constants import TextractFeatures
 from collections import defaultdict
 from pydantic import ValidationError
-from acord_schema import ACORD125Schema
+from schemas.acord_schema import ACORD125Schema
 import pandas as pd
+import time
 
 # Load AWS credentials from .env
 load_dotenv()
@@ -28,7 +26,12 @@ s3_client = boto3.client(
     region_name=AWS_REGION
 )
 bedrock_runtime_client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
-textractor = Textractor(region_name=AWS_REGION)
+textract_client = boto3.client(
+    "textract",
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION
+)
 
 # --- ACORD Extractor --- #
 
@@ -39,20 +42,52 @@ def upload_to_s3(file):
 
     try:
         s3_client.upload_file(file.name, BUCKET_NAME, s3_key)
-        return f"s3://{BUCKET_NAME}/{s3_key}", None # return S3 path and no error
+        return s3_key, None # return S3 key and no error
     except Exception as e:
         return None, str(e)
 
-def get_kv_map(s3_path):
+def get_kv_map(s3_key):
+    """Start async Textract analysis and poll for results"""
 
-    doc = textractor.start_document_analysis(
-        file_source=s3_path,
-        features=[TextractFeatures.FORMS],
-        s3_upload_path=f"s3://{BUCKET_NAME}/textract-output/",
-        save_image=False  # skip pdf2image entirely
+    # Start document analysis
+    response = textract_client.start_document_analysis(
+        DocumentLocation={
+            'S3Object': {
+                'Bucket': BUCKET_NAME,
+                'Name': s3_key
+            }
+        },
+        FeatureTypes=['FORMS']
     )
 
-    blocks = doc.response["Blocks"]
+    job_id = response['JobId']
+    print(f"Started Textract job: {job_id}")
+
+    # Poll for completion
+    while True:
+        result = textract_client.get_document_analysis(JobId=job_id)
+        status = result['JobStatus']
+
+        if status == 'SUCCEEDED':
+            print("Textract job completed successfully")
+            break
+        elif status == 'FAILED':
+            raise Exception(f"Textract job failed: {result.get('StatusMessage', 'Unknown error')}")
+
+        print(f"Job status: {status}, waiting...")
+        time.sleep(2)
+
+    # Get all pages of results
+    blocks = result['Blocks']
+    next_token = result.get('NextToken')
+
+    while next_token:
+        result = textract_client.get_document_analysis(
+            JobId=job_id,
+            NextToken=next_token
+        )
+        blocks.extend(result['Blocks'])
+        next_token = result.get('NextToken')
 
     key_map, value_map, block_map = {}, {}, {}
 
@@ -261,11 +296,11 @@ def process_pdf(file):
     if file is None:
         return "No file uploaded.", None
 
-    s3_path, err = upload_to_s3(file)
+    s3_key, err = upload_to_s3(file)
     if err:
         return f"S3 upload error: {err}", None
 
-    key_map, value_map, block_map = get_kv_map(s3_path)
+    key_map, value_map, block_map = get_kv_map(s3_key)
     kvs = get_kv_relationship(key_map, value_map, block_map)
     extracted_data = get_kv_pairs(kvs)
 

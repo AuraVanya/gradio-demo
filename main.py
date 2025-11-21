@@ -1,6 +1,6 @@
 import gradio as gr
-from motor_quote import process_image
-from acord_extractor import process_pdf
+from functions.motor_quote import process_images
+from functions.acord_extractor import process_pdf
 
 # --- Gradio Functions --- #
 
@@ -18,7 +18,7 @@ acord_extractor = gr.Interface(
         gr.Textbox(label="Bedrock JSON Output", lines=20),
         gr.Dataframe(
             label="Textract Extracted Data with Confidence Scores",
-            column_widths=["40%", "30%", "15%", "15%"],
+            column_widths=["30%", "30%", "20%", "20%"],
             wrap=True
         )
     ],
@@ -28,13 +28,22 @@ acord_extractor = gr.Interface(
 
 # Motor Quote Image Analysis Gradio Interface
 motor_quote = gr.Interface(
-    fn=process_image,
-    inputs= gr.File(file_types=[".png", ".jpg", ".jpeg"], label="Upload Vehicle Image"),
-    outputs=[
-        gr.Textbox(label="Rekognition JSON Output", lines=20),
-        gr.Dataframe(label="Rekognition Image Analysis with Confidence Scores", wrap=True)
+    fn=process_images,
+    inputs=[
+        gr.File(file_types=[".png", ".jpg", ".jpeg"], label="Upload Vehicle Image"),
+        gr.File(file_types=[".png", ".jpg", ".jpeg"], label="Upload Driver's License Image")
     ],
-    description="Upload an image to analyze it with AWS Rekognition. Detects labels, text, faces, and content moderation.",
+    outputs=[
+        gr.Dataframe(
+            label="Vehicle Analysis (AWS Rekognition)",
+             column_widths=["20%", "20%", "35%", "15%"],
+            wrap=True),
+        gr.Dataframe(
+            label="Driver's License Extraction (AWS Textract)",
+            column_widths=["20%", "40%", "15%", "15%"],
+            wrap=True)
+        ],
+    description="Upload a vehicle image and a driver's license image. The vehicle will be analyzed with AWS Rekognition, and the license will be processed with AWS Textract to extract key-value pairs.",
     flagging_mode='never'
 )
 

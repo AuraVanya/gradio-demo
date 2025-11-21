@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field, EmailStr, ValidationError
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List, Literal
-import json
 
 # Pydantic Schema
 
