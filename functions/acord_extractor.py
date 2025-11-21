@@ -25,22 +25,28 @@ s3_client = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
-bedrock_runtime_client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 textract_client = boto3.client(
     "textract",
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
+bedrock_runtime_client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 
 # --- ACORD Extractor --- #
 
 def upload_to_s3(file):
     """Uploads PDF to S3 and returns the S3 path"""
 
-    s3_key = f"uploads/{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.name}"
+    if file is None:
+        return None, "No file provided"
+
+    if not hasattr(file, 'name'):
+        return None, "Invalid file object"
 
     try:
+        filename = os.path.basename(file.name)
+        s3_key = f"uploads/{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
         s3_client.upload_file(file.name, BUCKET_NAME, s3_key)
         return s3_key, None # return S3 key and no error
     except Exception as e:
@@ -304,8 +310,6 @@ def process_pdf(file):
     kvs = get_kv_relationship(key_map, value_map, block_map)
     extracted_data = get_kv_pairs(kvs)
 
-    print("Extracted Data:", extracted_data) # debugging
-
     # Get JSON schema
     schema = ACORD125Schema.model_json_schema()
 
@@ -324,7 +328,5 @@ def process_pdf(file):
         }
         for item in extracted_data
     ])
-
-    print("Textract DataFrame:", textract_df) # debugging
 
     return output_json, textract_df

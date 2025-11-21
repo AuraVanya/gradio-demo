@@ -34,16 +34,19 @@ motor_quote = gr.Interface(
         gr.File(file_types=[".png", ".jpg", ".jpeg"], label="Upload Driver's License Image")
     ],
     outputs=[
+        gr.Textbox(
+            label="Bedrock JSON Output",
+            lines=20),
         gr.Dataframe(
-            label="Vehicle Analysis (AWS Rekognition)",
-             column_widths=["20%", "20%", "35%", "15%"],
+            label="Rekognition Vehicle Analysis with Confidence Scores",
+            column_widths=["20%", "20%", "35%", "15%"],
             wrap=True),
         gr.Dataframe(
-            label="Driver's License Extraction (AWS Textract)",
+            label="Textract Extracted Driver License Data with Confidence Scores",
             column_widths=["20%", "40%", "15%", "15%"],
             wrap=True)
-        ],
-    description="Upload a vehicle image and a driver's license image. The vehicle will be analyzed with AWS Rekognition, and the license will be processed with AWS Textract to extract key-value pairs.",
+    ],
+    description="Upload a vehicle image and a driver's license image. The vehicle will be analyzed with AWS Rekognition, the license will be processed with AWS Textract, and Bedrock will structure the data into a standard JSON format.",
     flagging_mode='never'
 )
 

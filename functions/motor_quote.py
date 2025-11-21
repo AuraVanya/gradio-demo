@@ -3,6 +3,7 @@ import boto3
 from dotenv import load_dotenv
 from datetime import datetime
 import pandas as pd
+import json
 
 # Load AWS credentials from .env
 load_dotenv()
@@ -32,46 +33,24 @@ textract_client = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION
 )
+bedrock_runtime_client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 
 # --- Image Analyzer --- #
 
 def upload_image_to_s3(file):
     """Uploads image to S3 and returns the S3 path"""
-    import tempfile
-    import shutil
 
-    # Get the original filename
-    if hasattr(file, 'name'):
-        original_name = os.path.basename(file.name)
-    else:
-        original_name = "uploaded_image.jpg"
+    if file is None:
+        return None, "No file provided"
 
-    s3_key = f"uploads/images/{datetime.now().strftime('%Y%m%d%H%M%S')}_{original_name}"
+    if not hasattr(file, 'name'):
+        return None, "Invalid file object"
 
     try:
-        # Handle different file input types from Gradio
-        if isinstance(file, str):
-            # file is a path string
-            file_path = file
-        elif hasattr(file, 'name'):
-            # file is a file-like object with a name attribute
-            file_path = file.name
-        else:
-            # Create a temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(original_name)[1]) as tmp_file:
-                shutil.copyfileobj(file, tmp_file)
-                file_path = tmp_file.name
-
-        # Upload to S3
-        with open(file_path, 'rb') as f:
-            s3_client.put_object(
-                Bucket=BUCKET_NAME,
-                Key=s3_key,
-                Body=f,
-                ContentType='image/jpeg'
-            )
-
-        return s3_key, None  # return S3 key and no error
+        filename = os.path.basename(file.name)
+        s3_key = f"uploads/images/{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+        s3_client.upload_file(file.name, BUCKET_NAME, s3_key)
+        return s3_key, None # return S3 key and no error
     except Exception as e:
         return None, str(e)
 
@@ -232,11 +211,130 @@ def analyze_license_with_textract(s3_key):
     except Exception as e:
         return None, str(e)
 
+def run_bedrock_analysis(vehicle_data, license_data, schema):
+    """Use Bedrock to transform extracted data into structured JSON format"""
+
+    combined_data = {
+        "vehicle_analysis": vehicle_data,
+        "license_data": license_data
+    }
+
+    data_dump = json.dumps(combined_data, indent=2)
+    schema_dump = json.dumps(schema, indent=2)
+
+    print("Transforming data with Bedrock...")
+
+    try:
+        response = bedrock_runtime_client.invoke_model(
+            modelId=INFERENCE_PROFILE_ARN,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 4096,
+                "temperature": 0.1,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [{
+                            "type": "text",
+                            "text": f"""
+                                    You are an expert in vehicle insurance data extraction and driver's license interpretation.
+
+                                    **Task:**
+                                    Extract and structure vehicle and driver information from the provided AWS Rekognition and Textract data according to the given JSON schema.
+
+                                    **Inputs:**
+                                    1. **Schema:** A JSON schema defining the required output structure.
+                                    2. **Data:** Combined data from:
+                                    - vehicle_analysis: Rekognition results (colors, labels, text detections)
+                                    - license_data: Textract key-value pairs from driver's license
+
+                                    **Instructions:**
+                                    1. Carefully analyze both data sources.
+                                    2. For vehicle information:
+                                    - Extract type, brand, model, year from labels (e.g., "Car", "Toyota", "Sedan", etc.)
+                                    - Use dominant colors for the color field
+                                    - Extract license plate, chassis number, engine number from text detections
+                                    - Use reasonable inference for transmission type if visible in labels
+                                    3. For driver information:
+                                    - Map Textract key-value pairs to driver fields
+                                    - Common license fields: license number, name, surname, DOB, address, valid from/to dates
+                                    - Format dates as YYYY-MM-DD if possible
+                                    4. For fields not found in data, set value to null or empty string as appropriate.
+                                    5. Output **must** be a single, valid JSON object conforming to the schema.
+                                    6. Do not include any markdown formatting, explanations, or commentary.
+                                    7. Ensure valid JSON: no trailing commas, double quotes for properties, proper escaping.
+
+                                    **Schema:**
+                                    {schema_dump}
+
+                                    **Data:**
+                                    {data_dump}
+                                    """
+                        }]
+                    }
+                ]
+            }),
+        )
+
+        result = json.loads(response["body"].read())
+        text = result['content'][0]['text']
+
+        print("✓ Data transformed")
+
+        # Clean up markdown formatting
+        text = text.strip()
+        if text.startswith('```json'):
+            text = text[7:]
+        if text.startswith('```'):
+            text = text[3:]
+        if text.endswith('```'):
+            text = text[:-3]
+        text = text.strip()
+
+        # Parse JSON
+        json_data = json.loads(text)
+        print("✓ JSON parsed successfully")
+
+        return json.dumps(json_data, indent=2)
+
+    except json.JSONDecodeError as e:
+        print(f"✗ JSON parsing error: {e}")
+        return None
+    except Exception as e:
+        print(f"✗ Bedrock error: {e}")
+        return None
+
+schema = {
+            "vehicle": {
+                "type": "string",
+                "brand": "string",
+                "model": "string",
+                "year": "integer",
+                "transmission": "string",
+                "licensePlate": "string",
+                "chassisNumber": "string",
+                "engineNumber": "string",
+                "color": "string"
+            },
+            "driver": {
+                "driverLicenseId": "string",
+                "name": "string",
+                "surname": "string",
+                "dateOfBirth": "string (YYYY-MM-DD)",
+                "countryOfBirth": "string",
+                "validFrom": "string (YYYY-MM-DD)",
+                "validTo": "string (YYYY-MM-DD)",
+                "issuingAuthority": "string",
+                "address": "string",
+                "addressMatchesDVLA": "boolean"
+            }
+        }
+
 def process_images(vehicle_image, license_image):
     """Main function to process both uploaded images"""
 
-    vehicle_df = None
-    license_df = None
 
     # Process vehicle image with Rekognition
     if vehicle_image is not None:
@@ -245,7 +343,7 @@ def process_images(vehicle_image, license_image):
             vehicle_df = pd.DataFrame([{'Error': f"S3 upload error: {err}"}])
         else:
             print(f"Vehicle image uploaded to S3: {s3_key}")
-            results, err = analyze_image_with_rekognition(s3_key)
+            vehicle_results, err = analyze_image_with_rekognition(s3_key)
             if err:
                 vehicle_df = pd.DataFrame([{'Error': f"Rekognition analysis error: {err}"}])
             else:
@@ -253,7 +351,7 @@ def process_images(vehicle_image, license_image):
                 table_data = []
 
                 # Add dominant colors first
-                for color in results.get('dominant_colors', []):
+                for color in vehicle_results.get('dominant_colors', []):
                     table_data.append({
                         'Category': 'Color',
                         'Key': color['color'],
@@ -262,7 +360,7 @@ def process_images(vehicle_image, license_image):
                     })
 
                 # Add labels
-                for label in results.get('labels', []):
+                for label in vehicle_results.get('labels', []):
                     table_data.append({
                         'Category': 'Label',
                         'Key': label['name'],
@@ -271,7 +369,7 @@ def process_images(vehicle_image, license_image):
                     })
 
                 # Add text detections
-                for text in results.get('text_detections', []):
+                for text in vehicle_results.get('text_detections', []):
                     if text['type'] == 'LINE':
                         table_data.append({
                             'Category': 'Text',
@@ -281,7 +379,7 @@ def process_images(vehicle_image, license_image):
                         })
 
                 # Add face detections
-                for i, face in enumerate(results.get('faces', []), 1):
+                for i, face in enumerate(vehicle_results.get('faces', []), 1):
                     emotions = ', '.join([f"{e['type']}" for e in face['emotions'][:3]])
                     table_data.append({
                         'Category': 'Face',
@@ -290,7 +388,7 @@ def process_images(vehicle_image, license_image):
                         'Confidence': f"{face['confidence']:.2f}%"
                     })
 
-                vehicle_df = pd.DataFrame(table_data)
+                vehicle_df = pd.DataFrame(table_data) if table_data else pd.DataFrame([{'Message': 'No data extracted'}])
     else:
         vehicle_df = pd.DataFrame([{'Message': 'No vehicle image uploaded'}])
 
@@ -301,13 +399,13 @@ def process_images(vehicle_image, license_image):
             license_df = pd.DataFrame([{'Error': f"S3 upload error: {err}"}])
         else:
             print(f"License image uploaded to S3: {s3_key}")
-            results, err = analyze_license_with_textract(s3_key)
+            license_results, err = analyze_license_with_textract(s3_key)
             if err:
                 license_df = pd.DataFrame([{'Error': f"Textract analysis error: {err}"}])
             else:
                 # Create DataFrame for license analysis
                 table_data = []
-                for item in results.get('key_value_pairs', []):
+                for item in license_results.get('key_value_pairs', []):
                     if item['key']:  # Only include entries with keys
                         table_data.append({
                             'Key': item['key'],
@@ -316,8 +414,16 @@ def process_images(vehicle_image, license_image):
                             'Value Confidence': f"{item['value_confidence']:.2f}%"
                         })
 
-                license_df = pd.DataFrame(table_data)
+                license_df = pd.DataFrame(table_data) if table_data else pd.DataFrame([{'Message': 'No data extracted'}])
     else:
         license_df = pd.DataFrame([{'Message': 'No license image uploaded'}])
 
-    return vehicle_df, license_df
+    # Generate structured JSON with Bedrock if both images processed successfully
+    structured_json = "No structured output generated. One or both images were missing."
+
+    if vehicle_results and license_results:
+        result = run_bedrock_analysis(vehicle_results, license_results, schema)
+        if result:
+            structured_json = result
+
+    return structured_json, vehicle_df, license_df
