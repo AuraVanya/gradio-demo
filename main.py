@@ -50,6 +50,7 @@ motor_quote = gr.Interface(
     flagging_mode='never'
 )
 
+# Combine both interfaces into a tabbed layout
 demo = gr.TabbedInterface([
     acord_extractor,
     motor_quote,

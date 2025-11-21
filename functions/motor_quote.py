@@ -37,7 +37,7 @@ textract_client = boto3.client(
 )
 bedrock_runtime_client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 
-# --- Image Analyzer --- #
+# --- Motor Quote Image and License Analyzer --- #
 
 def upload_image_to_s3(file):
     """Uploads image to S3 and returns the S3 path"""
