@@ -210,6 +210,3 @@ class ACORD125Schema(BaseModel):
 
     class Config:
         extra = "forbid"
-
-# Get the JSON schema from Pydantic model
-acord_schema = ACORD125Schema.model_json_schema()
