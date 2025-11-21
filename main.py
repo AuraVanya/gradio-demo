@@ -22,7 +22,7 @@ acord_extractor = gr.Interface(
             wrap=True
         )
     ],
-    description="Upload an ACORD 125 Form, it will be sent to S3, processed by Textract, and interpreted by Bedrock LLM.",
+    description="Upload an ACORD 125 Form. The form will be sent to S3, processed by Textract, and Bedrock will structure the data into a standard JSON format.",
     flagging_mode='never'
 )
 

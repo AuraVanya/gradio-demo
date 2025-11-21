@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 import pandas as pd
 import json
+from pydantic import ValidationError
+from schemas.motor_schema import MotorQuoteSchema
 
 # Load AWS credentials from .env
 load_dotenv()
@@ -293,44 +295,39 @@ def run_bedrock_analysis(vehicle_data, license_data, schema):
             text = text[:-3]
         text = text.strip()
 
-        # Parse JSON
+        # Parse and validate the response
         json_data = json.loads(text)
-        print("✓ JSON parsed successfully")
+        validated_data = MotorQuoteSchema(**json_data)
+        print("✓ Schema validated")
 
-        return json.dumps(json_data, indent=2)
+        # Convert to JSON string
+        result_json = validated_data.model_dump_json(indent=2)
+
+        return result_json
 
     except json.JSONDecodeError as e:
-        print(f"✗ JSON parsing error: {e}")
+        print(f"✗ JSON parsing error at line {e.lineno}, column {e.colno}:")
+        print(f"   {e.msg}")
+        print("\nProblematic section of response:")
+        try:
+            lines = text.split('\n')
+            start = max(0, e.lineno - 3)
+            end = min(len(lines), e.lineno + 2)
+            for i in range(start, end):
+                marker = " >>> " if i == e.lineno - 1 else "     "
+                print(f"{marker}{i+1}: {lines[i]}")
+        except:
+            print(text[max(0, e.pos-100):e.pos+100])
         return None
+
+    except ValidationError as e:
+        print("✗ Validation error - Bedrock output doesn't match schema:")
+        print(e.json(indent=2))
+        return None
+
     except Exception as e:
         print(f"✗ Bedrock error: {e}")
         return None
-
-schema = {
-            "vehicle": {
-                "type": "string",
-                "brand": "string",
-                "model": "string",
-                "year": "integer",
-                "transmission": "string",
-                "licensePlate": "string",
-                "chassisNumber": "string",
-                "engineNumber": "string",
-                "color": "string"
-            },
-            "driver": {
-                "driverLicenseId": "string",
-                "name": "string",
-                "surname": "string",
-                "dateOfBirth": "string (YYYY-MM-DD)",
-                "countryOfBirth": "string",
-                "validFrom": "string (YYYY-MM-DD)",
-                "validTo": "string (YYYY-MM-DD)",
-                "issuingAuthority": "string",
-                "address": "string",
-                "addressMatchesDVLA": "boolean"
-            }
-        }
 
 def process_images(vehicle_image, license_image):
     """Main function to process both uploaded images"""
@@ -422,6 +419,8 @@ def process_images(vehicle_image, license_image):
     structured_json = "No structured output generated. One or both images were missing."
 
     if vehicle_results and license_results:
+        # Get JSON schema
+        schema = MotorQuoteSchema.model_json_schema()
         result = run_bedrock_analysis(vehicle_results, license_results, schema)
         if result:
             structured_json = result
