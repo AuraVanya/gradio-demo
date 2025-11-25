@@ -1,4 +1,4 @@
-# AWS Document & Image Analysis with Gradio
+# AWS Document Extraction & Image Analysis with Gradio
 
 A Gradio-based web application that leverages AWS services (Textract, Rekognition, and Bedrock) to extract and structure information from insurance documents and images.
 
@@ -11,7 +11,7 @@ A Gradio-based web application that leverages AWS services (Textract, Rekognitio
 - Validate data integrity with Pydantic
 - Return structured JSON output conforming to ACORD 125 schema
 
-### 2. Motor Quote Analyzer
+### 2. Vehicle and Driver License Visual Analysis
 
 - **Dual Image Processing:**
 
@@ -49,30 +49,30 @@ A Gradio-based web application that leverages AWS services (Textract, Rekognitio
     ┌────┴────┐
     │         │
 ┌───▼───┐ ┌──▼────────┐
-│ ACORD │ │  Motor    │
-│Extract│ │  Quote    │
+│ ACORD │ │  Visual   │
+│Extract│ │ Analysis  │
 └───┬───┘ └──┬────────┘
     │        │
     │    ┌───┴────┬─────────┐
     │    │        │         │
-┌───▼────▼───┐ ┌─▼──────┐ ┌▼────────┐
-│  Textract  │ │Rekog   │ │ Bedrock │
-│   (Forms)  │ │(Labels)│ │(Claude) │
-└────────────┘ └────────┘ └─────────┘
+┌───▼────▼───┐ ┌─▼─────────┐ ┌▼────────┐
+│  Textract  │ │Rekognition│ │ Bedrock │
+│   (Forms)  │ │(Labels)   │ │(Claude) │
+└────────────┘ └───────────┘ └─────────┘
 ```
 
 ## Project Structure
 
 ```
 gradio-demo/
-├── main.py                 # Main Gradio driver
+├── main.py                  # Main Gradio driver
 ├── functions/
-│   ├── acord_extractor.py  # ACORD 125 form processing
-│   └── motor_quote.py      # Vehicle & license image analysis
+│   ├── acord_extractor.py   # ACORD 125 form processing
+│   └── visual_analysis.py   # Vehicle & license visual analysis
 ├── schemas/
-│   ├── acord_schema.py     # ACORD 125 Pydantic schema
-│   └── motor_schema.py     # Motor quote Pydantic schema
-├── .env                    # AWS credentials (not in repo)
+│   ├── acord_schema.py      # ACORD 125 Pydantic schema
+│   └── vehicle_schema.py    # Vehicle and driver license Pydantic schema
+├── .env                     # AWS credentials (not in repo)
 └── README.md
 ```
 
@@ -132,7 +132,7 @@ gradio main.py
    - View extracted data in table format
    - Review structured JSON output
 
-4. **Motor Quote Tab:**
+4. **Vehicle Image Analysis Tab:**
    - Upload a vehicle image (car/motorcycle photo)
    - Upload a driver's license image
    - View extracted data tables for both images
@@ -144,7 +144,7 @@ This project is licensed under the terms specified in the LICENSE file.
 
 ## Contributing
 
-Contributions are welcome! ૮꒰∩´ ᵕ `∩꒱ა Please feel free to submit a Pull Request.
+Contributions are welcome! ૮꒰´ ᵕ `꒱ა Please feel free to submit a Pull Request.
 
 ## Author
 
