@@ -33,7 +33,7 @@ class DriverSchema(BaseModel):
         populate_by_name = True
 
 
-class MotorQuoteSchema(BaseModel):
+class VehicleDriverSchema(BaseModel):
     vehicle: VehicleSchema = Field(..., description="Vehicle information")
     driver: DriverSchema = Field(..., description="Driver information")
 

@@ -1,5 +1,5 @@
 import gradio as gr
-from functions.motor_quote import process_images
+from functions.visual_analysis import process_images
 from functions.acord_extractor import process_pdf
 
 # --- Gradio Functions --- #
@@ -22,7 +22,7 @@ acord_extractor = gr.Interface(
             wrap=True
         )
     ],
-    description="Upload an ACORD 125 Form. The form will be sent to S3, processed by Textract, and Bedrock will structure the data into a standard JSON format.",
+    description="Upload an ACORD 125 Form. The form will be sent to S3, processed by AWS Textract, and Bedrock will structure the data into a standard JSON format.",
     flagging_mode='never'
 )
 
@@ -38,15 +38,15 @@ motor_quote = gr.Interface(
             label="Bedrock JSON Output",
             lines=20),
         gr.Dataframe(
-            label="Rekognition Vehicle Analysis with Confidence Scores",
+            label="Vehicle Visual Analysis with Confidence Scores",
             column_widths=["20%", "20%", "35%", "15%"],
             wrap=True),
         gr.Dataframe(
-            label="Textract Extracted Driver License Data with Confidence Scores",
+            label="Driver License Visual Analysis with Confidence Scores",
             column_widths=["20%", "40%", "15%", "15%"],
             wrap=True)
     ],
-    description="Upload a vehicle image and a driver's license image. The vehicle will be analyzed with AWS Rekognition, the license will be processed with AWS Textract, and Bedrock will structure the data into a standard JSON format.",
+    description="Upload a vehicle image and a driver's license image. The images will be sent to S3, processed by AWS Rekognition, and Bedrock will structure the data into a standard JSON format.",
     flagging_mode='never'
 )
 
@@ -57,7 +57,7 @@ demo = gr.TabbedInterface([
     ],
     [
     "ACORD Extractor",
-    "Motor Quote",
+    "Vehicle Visual Analysis",
     ],
     theme=custom_theme
 )

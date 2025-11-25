@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 import json
 from pydantic import ValidationError
-from schemas.motor_schema import MotorQuoteSchema
+from schemas.vehicle_schema import VehicleDriverSchema
 
 # Load AWS credentials from .env
 load_dotenv()
@@ -295,7 +295,7 @@ def run_bedrock_analysis(vehicle_data, license_data, schema):
 
         # Parse and validate the response
         json_data = json.loads(text)
-        validated_data = MotorQuoteSchema(**json_data)
+        validated_data = VehicleDriverSchema(**json_data)
         print("✓ Schema validated")
 
         # Convert to JSON string
@@ -418,7 +418,7 @@ def process_images(vehicle_image, license_image):
 
     if vehicle_results and license_results:
         # Get JSON schema
-        schema = MotorQuoteSchema.model_json_schema()
+        schema = VehicleDriverSchema.model_json_schema()
         result = run_bedrock_analysis(vehicle_results, license_results, schema)
         if result:
             structured_json = result
