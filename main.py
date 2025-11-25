@@ -62,4 +62,4 @@ demo = gr.TabbedInterface([
     theme=custom_theme
 )
 
-demo.launch(debug=True)
+demo.launch(debug=True, share=True)

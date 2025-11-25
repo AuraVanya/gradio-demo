@@ -155,9 +155,7 @@ def analyze_license_with_textract(s3_key):
         )
 
         # Build key-value map
-        key_map = {}
-        value_map = {}
-        block_map = {}
+        key_map, value_map, block_map = {}, {}, {}
 
         for block in response['Blocks']:
             block_id = block['Id']
