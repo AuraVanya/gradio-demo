@@ -1,6 +1,35 @@
 import json
 import gradio as gr
 from functions.fnol_triage import triage_fnol
+from datetime import datetime
+
+# Load form configuration
+with open("data/form_config.json", "r") as f:
+    FORM_CONFIG = json.load(f)
+
+# Load country mapping
+with open("data/country_region_mapping.json", "r") as f:
+    COUNTRY_DATA = json.load(f)
+
+# Load product taxonomy
+with open("data/nacora_product_taxonomy.json", "r") as f:
+    PRODUCT_TAX = json.load(f)
+
+# Prepare dropdown choices
+COUNTRY_CHOICES = [(f"{code} - {name}", code) for code, name in FORM_CONFIG["countries"].items()]
+CURRENCY_CHOICES = FORM_CONFIG["currencies"]
+
+# Flatten incident types for dropdown
+INCIDENT_TYPE_CHOICES = []
+for category, incidents in FORM_CONFIG["incident_types"].items():
+    for incident in incidents:
+        INCIDENT_TYPE_CHOICES.append(f"{category}: {incident}")
+
+# Flatten product taxonomy for dropdown
+PRODUCT_CHOICES = []
+for cat in PRODUCT_TAX["categories"]:
+    for prod in cat["products"]:
+        PRODUCT_CHOICES.append(f"{cat['first_grouping']} – {prod['product_name']}")
 
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap');
@@ -275,33 +304,154 @@ body, .gradio-container {
 """
 
 
+def construct_loss_description_from_form(
+    policy_number, insured_name, date_of_loss, time_of_loss,
+    country, city, address, product_type, incident_type,
+    loss_description, estimated_value, currency,
+    # Motor conditional
+    vehicle_plate, vehicle_model, driver_name,
+    # Property conditional
+    property_type, damage_type,
+    # Health conditional
+    hospital_name, treatment_type,
+    # Marine conditional
+    vessel_name, bill_of_lading,
+):
+    """Constructs structured loss description from form inputs"""
+    parts = []
+
+    # Policy & Insured
+    if policy_number:
+        parts.append(f"Policy Number: {policy_number}")
+    if insured_name:
+        parts.append(f"Insured: {insured_name}")
+
+    # Product Type
+    if product_type and product_type != "Unknown / Let AI Detect":
+        parts.append(f"Insurance Product: {product_type}")
+
+    # Date & Time
+    if date_of_loss:
+        parts.append(f"Date of Loss: {date_of_loss}")
+    if time_of_loss and time_of_loss != "Unknown":
+        parts.append(f"Time of Loss: {time_of_loss}")
+
+    # Location
+    location_parts = []
+    if city:
+        location_parts.append(city)
+    if country:
+        country_name = FORM_CONFIG["countries"].get(country, country)
+        location_parts.append(country_name)
+    if location_parts:
+        parts.append(f"Location: {', '.join(location_parts)}")
+    if address:
+        parts.append(f"Address: {address}")
+
+    # Incident Type
+    if incident_type:
+        parts.append(f"Incident Type: {incident_type}")
+
+    # Loss Description (required field)
+    if loss_description:
+        parts.append(f"\nDescription:\n{loss_description}")
+
+    # Financial
+    if estimated_value:
+        parts.append(f"\nEstimated Loss: {currency} {estimated_value:,.2f}" if isinstance(estimated_value, (int, float)) else f"\nEstimated Loss: {currency} {estimated_value}")
+
+    # Conditional fields
+    if vehicle_plate or vehicle_model or driver_name:
+        motor_info = []
+        if vehicle_plate:
+            motor_info.append(f"Vehicle Plate: {vehicle_plate}")
+        if vehicle_model:
+            motor_info.append(f"Vehicle Model: {vehicle_model}")
+        if driver_name:
+            motor_info.append(f"Driver: {driver_name}")
+        if motor_info:
+            parts.append("\n--- Motor Details ---")
+            parts.extend(motor_info)
+
+    if property_type or damage_type:
+        prop_info = []
+        if property_type:
+            prop_info.append(f"Property Type: {property_type}")
+        if damage_type:
+            prop_info.append(f"Damage Type: {damage_type}")
+        if prop_info:
+            parts.append("\n--- Property Details ---")
+            parts.extend(prop_info)
+
+    if hospital_name or treatment_type:
+        health_info = []
+        if hospital_name:
+            health_info.append(f"Hospital: {hospital_name}")
+        if treatment_type:
+            health_info.append(f"Treatment: {treatment_type}")
+        if health_info:
+            parts.append("\n--- Health Details ---")
+            parts.extend(health_info)
+
+    if vessel_name or bill_of_lading:
+        marine_info = []
+        if vessel_name:
+            marine_info.append(f"Vessel: {vessel_name}")
+        if bill_of_lading:
+            marine_info.append(f"B/L Reference: {bill_of_lading}")
+        if marine_info:
+            parts.append("\n--- Marine Details ---")
+            parts.extend(marine_info)
+
+    return "\n".join(parts)
+
+
 def triage_and_parse(
+    # Free text (legacy)
     free_text,
     doc_file,
-    insured_name,
-    policy_number,
-    location,
-    estimated_value,
-    urgency_notes,
-    documents_list,
-    extra_notes,
+    # New structured form fields
+    policy_number, insured_name, date_of_loss, time_of_loss,
+    country, city, address, product_type, incident_type,
+    loss_description, estimated_value, currency,
+    # Conditional fields
+    vehicle_plate, vehicle_model, driver_name,
+    property_type, damage_type,
+    hospital_name, treatment_type,
+    vessel_name, bill_of_lading,
 ):
+    """Main triage function handling both free-text and structured form inputs"""
+
+    # Determine input mode
+    if free_text and free_text.strip():
+        # Free text mode (legacy)
+        input_text = free_text
+    elif loss_description and loss_description.strip():
+        # Structured form mode - construct description
+        input_text = construct_loss_description_from_form(
+            policy_number, insured_name, date_of_loss, time_of_loss,
+            country, city, address, product_type, incident_type,
+            loss_description, estimated_value, currency,
+            vehicle_plate, vehicle_model, driver_name,
+            property_type, damage_type,
+            hospital_name, treatment_type,
+            vessel_name, bill_of_lading,
+        )
+    else:
+        # Empty input
+        input_text = ""
+
+    # Call triage function (with legacy signature for backward compatibility)
     json_str = triage_fnol(
-        free_text,
+        input_text,
         doc_file,
-        insured_name,
-        policy_number,
-        location,
-        estimated_value,
-        urgency_notes,
-        documents_list,
-        extra_notes,
+        "", "", "", "", "", "", ""  # Empty legacy fields
     )
 
     try:
         data = json.loads(json_str)
     except json.JSONDecodeError:
-        return json_str, "", "", "", "", "", "", "", "", "", ""
+        return json_str, "", "", "", "", "", "", "", "", "", "", ""
 
     # === 1. CLAIM TYPE (Top Priority) ===
     claim_type_data = data.get("claim_type", {})
@@ -431,14 +581,136 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
                             placeholder="Paste the FNOL notification text here...",
                         )
 
-                    with gr.Tab("Form input"):
-                        insured_name = gr.Textbox(label="Insured Name (optional)")
-                        policy_number = gr.Textbox(label="Policy Number (optional)")
-                        location = gr.Textbox(label="Loss Location (optional)")
-                        estimated_value = gr.Textbox(label="Estimated Value (optional)")
-                        urgency_notes = gr.Textbox(label="Urgency Notes (optional)")
-                        documents_list = gr.Textbox(label="Documents Available (optional)")
-                        extra_notes = gr.Textbox(label="Additional Notes (optional)", lines=3)
+                    with gr.Tab("Structured Form"):
+                        gr.Markdown("### 📋 Policy & Insured Information", elem_classes="label")
+                        with gr.Row():
+                            policy_number = gr.Textbox(
+                                label="Policy Number *",
+                                placeholder="e.g., NAC-2024-001234",
+                                info="Required field"
+                            )
+                            insured_name = gr.Textbox(
+                                label="Insured Name *",
+                                placeholder="Company or individual name",
+                                info="Required field"
+                            )
+
+                        gr.Markdown("### 📅 Loss Details", elem_classes="label")
+                        with gr.Row():
+                            date_of_loss = gr.Textbox(
+                                label="Date of Loss *",
+                                placeholder="YYYY-MM-DD (e.g., 2026-04-10)",
+                                info="Required field - must not be in future"
+                            )
+                            time_of_loss = gr.Dropdown(
+                                label="Time of Loss *",
+                                choices=["Unknown"] + [f"{h:02d}:00" for h in range(24)] + [f"{h:02d}:30" for h in range(24)],
+                                value="Unknown",
+                                info="Select time or Unknown"
+                            )
+
+                        gr.Markdown("### 📍 Location of Loss", elem_classes="label")
+                        with gr.Row():
+                            country = gr.Dropdown(
+                                label="Country *",
+                                choices=[""] + [code for code, _ in COUNTRY_CHOICES],
+                                info="Required field"
+                            )
+                            city = gr.Textbox(
+                                label="City *",
+                                placeholder="e.g., Hamburg, Rotterdam, Madrid",
+                                info="Required field"
+                            )
+                        address = gr.Textbox(
+                            label="Address (optional but recommended)",
+                            placeholder="Street address, warehouse name, or specific location"
+                        )
+
+                        gr.Markdown("### 🏷️ Insurance Product & Incident", elem_classes="label")
+                        product_type = gr.Dropdown(
+                            label="Insurance Product (optional - AI will detect if left blank)",
+                            choices=["Unknown / Let AI Detect"] + PRODUCT_CHOICES,
+                            value="Unknown / Let AI Detect",
+                            info="Select if known, otherwise AI will classify"
+                        )
+                        incident_type = gr.Dropdown(
+                            label="Type of Incident *",
+                            choices=[""] + INCIDENT_TYPE_CHOICES,
+                            info="Required field - select most applicable type"
+                        )
+
+                        gr.Markdown("### 📝 Loss Description", elem_classes="label")
+                        loss_description = gr.Textbox(
+                            label="Description of Damage / Incident *",
+                            lines=5,
+                            placeholder="Describe what happened, what is damaged, and who is involved. Minimum 50 characters required.\n\nExample: Fire started in electrical panel at 02:30, spread to warehouse section B. Affected 200 pallets of electronics. Fire brigade contained damage within 2 hours. Estimated water and smoke damage to adjacent inventory.",
+                            info="Required field - minimum 50 characters"
+                        )
+
+                        gr.Markdown("### 💰 Financial Impact", elem_classes="label")
+                        with gr.Row():
+                            estimated_value = gr.Number(
+                                label="Estimated Loss Value *",
+                                minimum=0,
+                                info="Required field - must be greater than 0"
+                            )
+                            currency = gr.Dropdown(
+                                label="Currency *",
+                                choices=CURRENCY_CHOICES,
+                                value="EUR",
+                                info="Select currency"
+                            )
+
+                        # Conditional fields (with info text)
+                        gr.Markdown("### 🚗 Additional Details (if applicable)", elem_classes="label")
+                        gr.Markdown("**Motor Claims:** Provide vehicle details", elem_classes="small-note")
+                        with gr.Row():
+                            vehicle_plate = gr.Textbox(
+                                label="Vehicle Plate Number",
+                                placeholder="e.g., ABC-123"
+                            )
+                            vehicle_model = gr.Textbox(
+                                label="Vehicle Model",
+                                placeholder="e.g., Toyota Corolla 2023"
+                            )
+                            driver_name = gr.Textbox(
+                                label="Driver Name",
+                                placeholder="Full name of driver"
+                            )
+
+                        gr.Markdown("**Property Claims:** Property and damage details", elem_classes="small-note")
+                        with gr.Row():
+                            property_type = gr.Dropdown(
+                                label="Property Type",
+                                choices=["", "Commercial Building", "Warehouse", "Factory", "Office", "Residential", "Construction Site", "Other"],
+                            )
+                            damage_type = gr.Dropdown(
+                                label="Damage Type",
+                                choices=["", "Structural Damage", "Contents Only", "Both Structural and Contents", "Total Loss"],
+                            )
+
+                        gr.Markdown("**Health/Personal Accident Claims:** Medical details", elem_classes="small-note")
+                        with gr.Row():
+                            hospital_name = gr.Textbox(
+                                label="Hospital/Clinic Name",
+                                placeholder="Medical facility name"
+                            )
+                            treatment_type = gr.Textbox(
+                                label="Treatment Type",
+                                placeholder="e.g., Surgery, Hospitalization, Outpatient"
+                            )
+
+                        gr.Markdown("**Marine Cargo Claims:** Shipping details", elem_classes="small-note")
+                        with gr.Row():
+                            vessel_name = gr.Textbox(
+                                label="Vessel/Container Name",
+                                placeholder="Vessel or container ID"
+                            )
+                            bill_of_lading = gr.Textbox(
+                                label="Bill of Lading / CMR Reference",
+                                placeholder="B/L or CMR number"
+                            )
+
                     with gr.Tab("Upload"):
                                 doc_file = gr.File(
                                     file_types=[".txt", ".md", ".json", ".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg", ".tif", ".tiff"],
@@ -453,31 +725,22 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
                     run_btn = gr.Button("Run triage", elem_classes="run-btn")
                     clear_btn = gr.ClearButton(
                         [
-                            free_text,
-                            insured_name,
-                            policy_number,
-                            location,
-                            estimated_value,
-                            urgency_notes,
-                            documents_list,
-                            extra_notes,
-                            doc_file,
+                            free_text, doc_file,
+                            policy_number, insured_name, date_of_loss, time_of_loss,
+                            country, city, address, product_type, incident_type,
+                            loss_description, estimated_value, currency,
+                            vehicle_plate, vehicle_model, driver_name,
+                            property_type, damage_type,
+                            hospital_name, treatment_type,
+                            vessel_name, bill_of_lading,
                         ],
-                        value="Clear",
+                        value="Clear All",
                         elem_classes="ghost-btn",
                     )
 
             # Right: output panel
             with gr.Column(scale=4, elem_classes="panel"):
                 gr.Markdown("Business-Aligned Triage Card", elem_classes="label")
-
-                # Language detection banner
-                lang_out = gr.Textbox(
-                    label="Detected Language",
-                    interactive=False,
-                    elem_classes="card",
-                    lines=1,
-                )
 
                 # === PRIORITY 1: Claim Type ===
                 claim_type_out = gr.Textbox(
@@ -555,6 +818,14 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
                     elem_classes="card",
                 )
 
+                # Language detection
+                lang_out = gr.Textbox(
+                    label="Detected Language",
+                    interactive=False,
+                    elem_classes="card",
+                    lines=1,
+                )
+
                 json_out = gr.Textbox(
                     label="Structured JSON Output",
                     lines=10,
@@ -566,15 +837,18 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
         run_btn.click(
             triage_and_parse,
             inputs=[
+                # Free text / Upload (legacy)
                 free_text,
                 doc_file,
-                insured_name,
-                policy_number,
-                location,
-                estimated_value,
-                urgency_notes,
-                documents_list,
-                extra_notes,
+                # New structured form fields (in order of function signature)
+                policy_number, insured_name, date_of_loss, time_of_loss,
+                country, city, address, product_type, incident_type,
+                loss_description, estimated_value, currency,
+                # Conditional fields
+                vehicle_plate, vehicle_model, driver_name,
+                property_type, damage_type,
+                hospital_name, treatment_type,
+                vessel_name, bill_of_lading,
             ],
             outputs=[
                 json_out,

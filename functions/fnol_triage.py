@@ -226,7 +226,21 @@ Example: "Property – Construction all risk" or "Marine Cargo – Marine Cargo 
 Priority 1 (HIGHEST): severity == Critical AND claim_value > 500,000 → H-GL-002 (David Okonkwo)
 Priority 2: lob IN [trade_credit, professional_indemnity] → H-GL-003 (Nina Bergström)
 Priority 3: survey/inspection needed → ADD H-GL-004 (Youssef Benali) as SECONDARY
-Priority 4 (DEFAULT): Match on region, then specialities, then language match, then seniority
+Priority 4 (DEFAULT - REGION MANDATORY):
+  STEP 1: Detect claim country → map to region using country_region_mapping
+  STEP 2: FILTER handlers to ONLY those matching claim region
+  STEP 3: Among same-region handlers, rank by: speciality match > language match > seniority
+
+CRITICAL: Handler MUST be from same region as claim. Never assign cross-region unless no handlers exist in claim region.
+Example: Netherlands claim → ONLY Benelux handlers (H-BNL-001 to H-BNL-004)
+Example: Germany claim → ONLY DACH handlers (H-DACH-001 to H-DACH-006)
+Example: Turkey claim → ONLY MENA_Turkey handlers (H-MT-001, H-MT-002)
+
+EXCEPTIONS (Cross-region allowed ONLY for):
+- Priority 1: H-GL-002 (Global, handles any region for critical/high-value claims)
+- Priority 2: H-GL-003 (Global, handles any region for Trade Credit/PI)
+- Priority 3 secondary: H-GL-004 (Global, survey/inspection specialist)
+All other handlers: STRICT same-region matching REQUIRED.
 
 === TRADE CREDIT / PROFESSIONAL INDEMNITY DETECTION (REQ-13) ===
 Route to H-GL-003 (Nina Bergström) when claim mentions ANY of these keywords:
@@ -246,20 +260,24 @@ Do NOT route financial lines to regional handlers - ALWAYS use H-GL-003 as prima
 - Multilingual matching: CRITICAL - match detected input language to handler languages
 
 === MULTILINGUAL HANDLER MATCHING (REQ-12) ===
-When input language is detected, PRIORITIZE handlers who speak that language:
-- Turkish input (TR detected) → prefer H-MT-001 (Emre Yilmaz), H-MT-002 (Fatima Al-Hassan)
-- German input (DE detected) → prefer DACH handlers: H-DACH-001 through H-DACH-006
-- Dutch input (NL detected) → prefer Benelux handlers: H-BNL-001 through H-BNL-004
-- Spanish input (ES detected) → prefer H-ES-001 (Antonio Yut), H-LATAM-001 (Pablo Fuentes)
-- Portuguese input (PT detected) → prefer H-LATAM-002 (Valentina Cruz), H-LATAM-003 (Rodrigo Mendes)
-- French input (FR detected) → prefer H-BNL-001 (Celine Dubois), H-GL-002 (David Okonkwo)
-- Arabic input (AR detected) → prefer H-MT-002 (Fatima Al-Hassan), H-GL-004 (Youssef Benali)
-- Chinese input (ZH detected) → prefer H-APAC-001 (Mei-Lin Chow), H-GL-001 (Sarah Chen)
-- Japanese input (JA detected) → prefer H-APAC-002 (Hiroshi Nakamura)
-- Swedish/Nordic input (SV/NO/DA detected) → prefer H-UKN-002 (Astrid Lindqvist), H-UKN-004 (Erik Halvorsen)
+IMPORTANT: Language matching happens WITHIN the claim's region ONLY.
+Do NOT match language if it means assigning a handler from a different region.
 
-ONLY fallback to English-only handlers if NO language match exists in the region.
-This improves customer experience and reduces miscommunication.
+When input language is detected, prefer handlers who speak that language IN THE SAME REGION:
+- Turkish input (TR detected) + Turkey claim → H-MT-001 (Emre Yilmaz), H-MT-002 (Fatima Al-Hassan)
+- German input (DE detected) + DACH claim → H-DACH-001 through H-DACH-006
+- Dutch input (NL detected) + Benelux claim → H-BNL-001 through H-BNL-004
+- Spanish input (ES detected) + Iberia claim → H-ES-001 (Antonio Yut)
+- Spanish input (ES detected) + LATAM claim → H-LATAM-001 (Pablo Fuentes)
+- Portuguese input (PT detected) + LATAM claim → H-LATAM-002 (Valentina Cruz), H-LATAM-003 (Rodrigo Mendes)
+- French input (FR detected) + Benelux claim → H-BNL-001 (Celine Dubois)
+- Arabic input (AR detected) + MENA claim → H-MT-002 (Fatima Al-Hassan), H-GL-004 (Youssef Benali)
+- Chinese input (ZH detected) + APAC claim → H-APAC-001 (Mei-Lin Chow)
+- Japanese input (JA detected) + APAC claim → H-APAC-002 (Hiroshi Nakamura)
+- Swedish/Nordic input (SV/NO/DA detected) + UK_Nordics claim → H-UKN-002 (Astrid Lindqvist), H-UKN-004 (Erik Halvorsen)
+
+Region match is MANDATORY. Language match is a tiebreaker WITHIN the region.
+If no same-region handler speaks the detected language, use any same-region handler (English fallback).
 
 === SEVERITY SCORING (0-100) ===
 Score based on:
@@ -346,7 +364,7 @@ Return ONLY valid JSON matching this EXACT structure. NO markdown. NO chain-of-t
     "primary": {{
       "handler_id": "H-BNL-002",
       "name": "Lars van der Berg",
-      "match_reason": "Benelux marine cargo specialist with matching language (NL)",
+      "match_reason": "REGION MATCH: Benelux (NL claim) → Benelux handler | Marine cargo specialist | Dutch language match",
       "contact_email": "l.vandenberg@nacora.com",
       "contact_phone": "+31 10 1234 5612"
     }},

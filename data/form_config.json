@@ -1,0 +1,115 @@
+{
+  "countries": {
+    "AT": "Austria",
+    "AU": "Australia",
+    "BE": "Belgium",
+    "BR": "Brazil",
+    "CH": "Switzerland",
+    "CL": "Chile",
+    "CN": "China",
+    "CO": "Colombia",
+    "DE": "Germany",
+    "DK": "Denmark",
+    "ES": "Spain",
+    "FI": "Finland",
+    "GB": "United Kingdom",
+    "HK": "Hong Kong",
+    "IE": "Ireland",
+    "IN": "India",
+    "JP": "Japan",
+    "KE": "Kenya",
+    "KR": "South Korea",
+    "LU": "Luxembourg",
+    "MX": "Mexico",
+    "MY": "Malaysia",
+    "NL": "Netherlands",
+    "NO": "Norway",
+    "NZ": "New Zealand",
+    "PE": "Peru",
+    "PT": "Portugal",
+    "SA": "Saudi Arabia",
+    "SE": "Sweden",
+    "SG": "Singapore",
+    "TR": "Turkey",
+    "UY": "Uruguay",
+    "ZA": "South Africa",
+    "Other": "Other Country"
+  },
+  "currencies": [
+    "EUR", "USD", "GBP", "CHF", "BRL", "TRY", "SGD", "CNY", "JPY", "MXN", "AUD", "CAD", "ZAR"
+  ],
+  "incident_types": {
+    "Property": [
+      "Fire",
+      "Flood / Water Damage",
+      "Theft / Burglary",
+      "Storm / Wind Damage",
+      "Earthquake",
+      "Explosion",
+      "Vandalism",
+      "Equipment Breakdown",
+      "Business Interruption",
+      "Other Property Damage"
+    ],
+    "Motor": [
+      "Collision",
+      "Theft",
+      "Fire",
+      "Vandalism",
+      "Glass Damage",
+      "Natural Disaster",
+      "Hit and Run",
+      "Parking Damage",
+      "Other Motor Incident"
+    ],
+    "Liability": [
+      "Bodily Injury",
+      "Property Damage (Third Party)",
+      "Product Liability",
+      "Professional Negligence",
+      "Cyber Breach / Data Loss",
+      "Environmental Damage",
+      "Other Liability Claim"
+    ],
+    "Personal Lines": [
+      "Medical Treatment",
+      "Hospitalization",
+      "Death",
+      "Injury / Accident",
+      "Travel Delay / Cancellation",
+      "Lost Baggage",
+      "Pet Injury / Illness",
+      "Home Damage",
+      "Other Personal Claim"
+    ],
+    "Marine Cargo": [
+      "Cargo Loss / Damage",
+      "Container Damage",
+      "Theft in Transit",
+      "Water Damage",
+      "Temperature Breach / Spoilage",
+      "Total Loss",
+      "Partial Loss",
+      "Hull Damage",
+      "Other Marine Incident"
+    ],
+    "Trade Credit": [
+      "Buyer Insolvency",
+      "Non-Payment / Credit Default",
+      "Bankruptcy",
+      "Payment Delay",
+      "Other Trade Credit Claim"
+    ]
+  },
+  "document_types": [
+    "Police Report",
+    "Invoice / Receipt",
+    "Photos of Damage",
+    "Medical Report",
+    "Bill of Lading / CMR",
+    "Damage Survey",
+    "Fire Brigade Report",
+    "Estimate / Quote",
+    "Other Document"
+  ]
+}
