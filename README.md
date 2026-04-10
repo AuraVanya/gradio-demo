@@ -1,6 +1,6 @@
 # AWS Document Extraction & Image Analysis with Gradio
 
-A Gradio-based web application that leverages AWS services (Textract, Rekognition, and Bedrock) to extract and structure information from insurance documents and images.
+A Gradio-based web application that leverages AWS services (Textract, Rekognition, and Bedrock) to extract and structure information from insurance documents and images, plus a local FNOL triage workflow.
 
 ## Features
 
@@ -29,6 +29,14 @@ A Gradio-based web application that leverages AWS services (Textract, Rekognitio
   - Validate data integrity with Pydantic
   - Return structured JSON with vehicle and driver information
 
+### 3. FNOL Triage (Local Rules Engine)
+
+- Accepts FNOL free text or extracted document text
+- Classifies claim type and subtype
+- Scores severity with explanation-rich factors
+- Recommends next action and the most appropriate handler
+- Returns a deterministic JSON triage card for demo use
+
 ## Tech Stack
 
 - **Gradio:** Provides simple UI and shareable link
@@ -38,6 +46,7 @@ A Gradio-based web application that leverages AWS services (Textract, Rekognitio
   - **Bedrock:** Claude Sonnet for intelligent data structuring
   - **S3:** File storage
 - **Pydantic schemas:** Validate data structure and integrity
+- **Local rules engine:** Deterministic FNOL triage logic (no external API calls)
 
 ## Architecture
 
@@ -68,6 +77,7 @@ gradio-demo/
 ├── main.py                  # Main Gradio driver
 ├── functions/
 │   ├── acord_extractor.py   # ACORD 125 form processing
+│   ├── fnol_triage.py        # FNOL triage rules engine
 │   └── visual_analysis.py   # Vehicle & license visual analysis
 ├── schemas/
 │   ├── acord_schema.py      # ACORD 125 Pydantic schema
@@ -137,6 +147,11 @@ gradio main.py
    - Upload a driver's license image
    - View extracted data tables for both images
    - Review structured JSON output combining vehicle and driver info
+
+5. **FNOL Triage Tab:**
+   - Paste FNOL free text or upload extracted document text
+   - Optionally add insured/policy/location/value fields
+   - Review deterministic JSON triage output
 
 ## License
 
