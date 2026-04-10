@@ -1,8 +1,14 @@
+"""
+FNOL Triage Module - Complete Rewrite for P0 Requirements
+Implements all critical requirements from the specification
+"""
+
 import json
 import os
 import re
 import time
 from datetime import datetime
+from typing import Dict
 import boto3
 import zipfile
 import xml.etree.ElementTree as ET
@@ -20,6 +26,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# AWS Configuration
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
@@ -45,57 +52,35 @@ s3_client = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
     region_name=AWS_REGION,
 )
-DEBUG_BEDROCK = os.getenv("DEBUG_BEDROCK", "false").lower() in ["1", "true", "yes"]
 
-URGENCY_KEYWORDS = [
-    "urgent",
-    "asap",
-    "immediately",
-    "within 24",
-    "within 48",
-    "same day",
-    "surveyor",
-    "appointment",
-    "expedite",
-]
+# Load data files
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), "data")
 
-FIRE_KEYWORDS = ["fire", "smoke", "burn", "electrical fault", "sprinkler"]
-THEFT_KEYWORDS = ["theft", "stolen", "missing", "pilferage", "burglary"]
-WATER_KEYWORDS = ["water", "flood", "leak", "sprinkler discharge"]
-TEMP_KEYWORDS = ["temperature", "cold chain", "refrigerated", "frozen", "spoilage"]
-LIABILITY_KEYWORDS = ["third party", "liability", "injury", "bodily", "lawsuit", "claimant"]
+with open(os.path.join(DATA_DIR, "nacora_handler_pool.json"), "r") as f:
+    HANDLER_POOL = json.load(f)["handlers"]
 
-REGION_KEYWORDS = {
-    "EMEA": [
-        "europe", "uk", "united kingdom", "germany", "france", "spain", "italy",
-        "netherlands", "belgium", "hamburg", "london", "paris", "berlin", "dublin",
-    ],
-    "APAC": [
-        "asia", "singapore", "hong kong", "china", "japan", "korea", "thailand",
-        "malaysia", "indonesia", "vietnam", "australia", "sydney", "melbourne",
-    ],
-    "Americas": [
-        "usa", "united states", "canada", "mexico", "brazil", "chile", "argentina",
-        "new york", "los angeles", "houston", "miami", "toronto",
-    ],
-}
+with open(os.path.join(DATA_DIR, "nacora_lob_taxonomy.json"), "r") as f:
+    LOB_TAXONOMY = json.load(f)["lines_of_business"]
 
-CURRENCY_SYMBOLS = {
-    "€": "EUR",
-    "$": "USD",
-    "£": "GBP",
-    "¥": "JPY",
-}
+with open(os.path.join(DATA_DIR, "country_region_mapping.json"), "r") as f:
+    REGION_DATA = json.load(f)
+    COUNTRY_TO_REGION = REGION_DATA["country_to_region"]
 
-AMOUNT_PATTERN = re.compile(
-    r"(?P<currency>EUR|USD|GBP|CHF|CAD|AUD|SGD|HKD|JPY|CNY|RMB|THB|MYR|IDR|INR|\$|€|£|¥)"
-    r"\s*(?P<number>[0-9][0-9,\.\s]*)"
-    r"\s*(?P<unit>million|m|billion|bn|b)?",
-    re.IGNORECASE,
-)
+# Global counter for FNOL IDs
+_fnol_counter = 0
 
 
-def _normalize_text(*parts):
+def _generate_fnol_id() -> str:
+    """Generate FNOL ID in format FNOL-YYMMDD-NNNN"""
+    global _fnol_counter
+    _fnol_counter += 1
+    now = datetime.now()
+    return f"FNOL-{now.strftime('%y%m%d')}-{_fnol_counter:04d}"
+
+
+def _normalize_text(*parts) -> str:
+    """Combine and normalize text parts"""
     text = "\n".join(p for p in parts if p)
     return re.sub(r"\s+", " ", text).strip()
 
@@ -114,47 +99,6 @@ def _delete_s3_object(s3_key):
         pass
 
 
-def _textract_async_text(s3_key):
-    response = textract_client.start_document_text_detection(
-        DocumentLocation={
-            "S3Object": {"Bucket": BUCKET_NAME, "Name": s3_key}
-        }
-    )
-    job_id = response["JobId"]
-    while True:
-        result = textract_client.get_document_text_detection(JobId=job_id)
-        status = result["JobStatus"]
-        if status == "SUCCEEDED":
-            break
-        if status == "FAILED":
-            raise RuntimeError("Textract job failed")
-        time.sleep(2)
-
-    blocks = result.get("Blocks", [])
-    next_token = result.get("NextToken")
-    while next_token:
-        result = textract_client.get_document_text_detection(
-            JobId=job_id,
-            NextToken=next_token,
-        )
-        blocks.extend(result.get("Blocks", []))
-        next_token = result.get("NextToken")
-
-    lines = [block["Text"] for block in blocks if block.get("BlockType") == "LINE"]
-    return "\n".join(lines)
-
-
-def _textract_image_text(file_path):
-    with open(file_path, "rb") as handle:
-        image_bytes = handle.read()
-    result = textract_client.detect_document_text(
-        Document={"Bytes": image_bytes}
-    )
-    blocks = result.get("Blocks", [])
-    lines = [block["Text"] for block in blocks if block.get("BlockType") == "LINE"]
-    return "\n".join(lines)
-
-
 def _extract_docx_text(file_path):
     texts = []
     with zipfile.ZipFile(file_path) as docx_zip:
@@ -168,6 +112,7 @@ def _extract_docx_text(file_path):
 
 
 def _extract_text_from_upload(file_obj):
+    """Extract text from uploaded document"""
     if file_obj is None or not hasattr(file_obj, "name"):
         return ""
     file_path = file_obj.name
@@ -181,7 +126,6 @@ def _extract_text_from_upload(file_obj):
             return ""
 
     if ext in [".pdf", ".tif", ".tiff"]:
-        # Reuse ACORD Textract extraction to build key-value text when possible
         s3_key = None
         try:
             s3_key, err = acord_upload_to_s3(file_obj)
@@ -222,264 +166,219 @@ def _extract_text_from_upload(file_obj):
     return ""
 
 
-def _extract_amount(text):
-    match = AMOUNT_PATTERN.search(text)
-    if not match:
-        return None
+def _build_system_prompt() -> str:
+    """Build comprehensive system prompt with all data"""
 
-    currency_raw = match.group("currency").upper()
-    currency = CURRENCY_SYMBOLS.get(currency_raw, currency_raw)
-    number_raw = match.group("number").replace(",", " ").replace(" ", "")
-    try:
-        number = float(number_raw)
-    except ValueError:
-        return None
+    # Format handler pool
+    handler_list = []
+    for h in HANDLER_POOL:
+        handler_list.append(
+            f"  {h['id']}: {h['name']} ({h['seniority']}) - Region: {h['region']}, "
+            f"Specialities: {', '.join(h['specialities'])}, Languages: {', '.join(h['languages'])}, "
+            f"Max Severity: {h['max_severity']}, Email: {h['email']}, Phone: {h['phone']}"
+        )
 
-    unit = (match.group("unit") or "").lower()
-    multiplier = 1
-    if unit in ["million", "m"]:
-        multiplier = 1_000_000
-    elif unit in ["billion", "bn", "b"]:
-        multiplier = 1_000_000_000
+    # Format LoB taxonomy
+    lob_list = []
+    for lob in LOB_TAXONOMY:
+        lob_list.append(f"  {lob['lob_code']}: {lob['display_name']}")
 
-    total = number * multiplier
-    display = match.group(0).strip()
-    return {
-        "currency": currency,
-        "amount": total,
-        "display": display,
-    }
+    # Format country-to-region mapping
+    region_examples = []
+    for region in ["DACH", "Benelux", "UK_Nordics", "Iberia", "MENA_Turkey", "LATAM", "Africa", "APAC"]:
+        countries = [code for code, r in COUNTRY_TO_REGION.items() if r == region]
+        if countries:
+            region_examples.append(f"  {region}: {', '.join(countries[:5])}")
 
+    prompt = f"""You are an expert FNOL (First Notice of Loss) triage assistant for Nacora, a global insurance broker.
 
-def _detect_region(text):
-    text_lower = text.lower()
-    for region, keywords in REGION_KEYWORDS.items():
-        if any(keyword in text_lower for keyword in keywords):
-            return region
-    return "EMEA"
+YOUR TASK:
+Analyze the incoming loss notification and produce a structured triage decision that handlers can act on immediately.
 
+CRITICAL RULES:
+1. Use ONLY the real Nacora handler pool provided below - NEVER invent handler names
+2. Use ONLY the exact LoB taxonomy codes provided - NEVER create new categories
+3. Flag ALL missing information explicitly in data_gaps
+4. Provide numeric severity scores (0-100) with weighted factors (primary/secondary/minor)
+5. Name specific handlers with contact details in recommended actions
+6. Handle thin/ambiguous inputs gracefully - never fail
 
-def _detect_claim_type(text):
-    text_lower = text.lower()
-    is_cargo = any(keyword in text_lower for keyword in [
-        "cargo", "shipment", "consignee", "bill of lading", "warehouse", "bonded",
-        "pallet", "freight", "transit", "consignment",
-    ])
-    is_marine = any(keyword in text_lower for keyword in [
-        "marine", "ocean", "vessel", "port",
-    ])
-    is_liability = any(keyword in text_lower for keyword in LIABILITY_KEYWORDS)
+=== NACORA HANDLER POOL (34 handlers) ===
+{chr(10).join(handler_list)}
 
-    if is_cargo or is_marine:
-        if is_liability:
-            return "marine cargo liability"
-        return "marine cargo"
-    if is_liability:
-        return "liability"
-    return "other"
+=== LoB TAXONOMY (16 lines of business) ===
+{chr(10).join(lob_list)}
 
+=== COUNTRY TO REGION MAPPING ===
+{chr(10).join(region_examples)}
 
-def _detect_subtype(text):
-    text_lower = text.lower()
-    if any(k in text_lower for k in FIRE_KEYWORDS):
-        return "fire"
-    if any(k in text_lower for k in THEFT_KEYWORDS):
-        return "theft"
-    if any(k in text_lower for k in WATER_KEYWORDS):
-        return "water damage"
-    if any(k in text_lower for k in TEMP_KEYWORDS):
-        return "temperature breach"
-    if "collision" in text_lower or "impact" in text_lower:
-        return "collision/impact"
-    return "general damage"
+=== HANDLER ROUTING RULES (apply in priority order) ===
+Priority 1 (HIGHEST): severity == Critical AND claim_value > 500,000 → H-GL-002 (David Okonkwo)
+Priority 2: lob IN [trade_credit, professional_indemnity] → H-GL-003 (Nina Bergström)
+Priority 3: survey/inspection needed → ADD H-GL-004 (Youssef Benali) as SECONDARY
+Priority 4 (DEFAULT): Match on region, then specialities, then seniority
 
+=== SECONDARY HANDLER RULES ===
+- Survey/inspection needed → ALWAYS add H-GL-004 as secondary
+- Critical + value >500k → add H-GL-002 as secondary (or primary if Priority 1)
+- Trade credit or PI → H-GL-003 is ALWAYS primary
+- Multilingual: prefer handlers matching detected input language
 
-def _has_docs(text):
-    text_lower = text.lower()
-    return any(keyword in text_lower for keyword in [
-        "attached", "report", "photos", "images", "invoice", "packing list", "bill of lading",
-        "survey", "police report",
-    ])
+=== SEVERITY SCORING (0-100) ===
+Score based on:
+- Value: >5M = +40, 1-5M = +30, 250k-1M = +20, <250k = +10
+- Injury/fatality = +25 (mark as PRIMARY factor)
+- Fire/explosion = +15 (PRIMARY)
+- Total loss = +15 (PRIMARY)
+- Temperature breach/spoilage = +15 (SECONDARY)
+- Multiple parties affected = +10 (SECONDARY)
+- Legal/regulatory exposure = +15 (SECONDARY)
+- Urgent request = +10 (MINOR)
+- Business interruption = +15 (SECONDARY)
 
+Levels: Critical (70-100), High (50-69), Medium (30-49), Low (0-29)
 
-def _is_urgent(text):
-    text_lower = text.lower()
-    return any(keyword in text_lower for keyword in URGENCY_KEYWORDS)
+=== DATA GAPS DETECTION ===
+Check for these fields and flag as not_detected if missing:
+- geography (country, city, location)
+- policy.number
+- financial (amount, currency)
+- insurance_product
+- third party involvement
+- date of loss
 
+=== OUTPUT FORMAT (STRICT JSON) ===
+Return ONLY valid JSON. NO markdown code fences. NO text outside JSON.
 
-def _build_severity(text, amount_info, urgent):
-    text_lower = text.lower()
-    factors = []
-    score = 0
-    critical_trigger = False
+{{
+  "detected_language": {{"code": "EN", "name": "English", "confidence": 95}},
+  "classification": {{
+    "lob_code": "marine_cargo",
+    "lob_display_name": "Marine Cargo",
+    "lob_local_name": "Goederentransport",
+    "lob_local_language": "NL",
+    "insurance_product": "Open Cover",
+    "confidence": 92,
+    "reasoning": "Classification reasoning"
+  }},
+  "severity": {{
+    "level": "High",
+    "score": 78,
+    "confidence": 85,
+    "factors": [
+      {{"text": "Total loss claimed", "weight": "primary"}},
+      {{"text": "Time-sensitive settlement", "weight": "secondary"}},
+      {{"text": "Contractual penalties at stake", "weight": "minor"}}
+    ]
+  }},
+  "financial": {{
+    "amount": 240000,
+    "currency": "EUR",
+    "original_text": "EUR 240,000",
+    "confidence": 95
+  }},
+  "geography": {{
+    "country": "NL",
+    "country_name": "Netherlands",
+    "city": "Rotterdam",
+    "specific_location": "Rotterdam port",
+    "region": "Benelux",
+    "confidence": 95
+  }},
+  "policy": {{"number": "NC-MA-2024-8871", "confidence": 98}},
+  "recommended_action": {{
+    "action": "assign_to_handler_urgent",
+    "label": "Assign Urgently to Handler",
+    "reasoning": "Full reasoning for action",
+    "steps": ["Step 1...", "Step 2...", "Step 3..."]
+  }},
+  "handlers": {{
+    "primary": {{
+      "handler_id": "H-BNL-001",
+      "match_reason": "Benelux region marine cargo specialist"
+    }},
+    "secondary": {{
+      "handler_id": "H-GL-004",
+      "match_reason": "Survey coordinator",
+      "role_in_claim": "Survey Coordinator"
+    }}
+  }},
+  "data_gaps": [
+    {{"field": "policy_number", "prompt": "Please provide the policy number"}}
+  ],
+  "reasoning_trace": {{
+    "chain": [
+      "Step 1: Detected language as English with 95% confidence",
+      "Step 2: Extracted geography as Rotterdam, Netherlands",
+      "Step 3: Classified as marine_cargo based on keywords",
+      "Step 4: Assessed severity as High (score: 78/100)",
+      "Step 5: Routed to H-BNL-001 based on region and speciality"
+    ],
+    "risk_flags": [
+      {{"flag": "Time-sensitive claim requiring urgent action", "severity": "high"}},
+      {{"flag": "High-value cargo over EUR 200k", "severity": "medium"}}
+    ],
+    "confidence_overall": 88,
+    "ai_deductions": [
+      "Inferred temperature-sensitive cargo from 'refrigerated' mention",
+      "Deduced surveyor needed based on total loss claim"
+    ]
+  }},
+  "bms_integration": {{
+    "policy_number_field": "Links to existing policy record in NacoraHub",
+    "handler_id_field": "Pre-fills Assigned To field and triggers workflow step",
+    "lob_code_field": "Maps to BMS product taxonomy (tigerlab traffic codes)",
+    "severity_field": "Sets SLA timer: Critical=4h, High=24h, Medium=72h, Low=5d",
+    "financial_field": "Pre-fills Estimated Loss in claim financials with correct currency",
+    "open_cover_flag": "Triggers Open Cover handling module for certificate management"
+  }}
+}}
 
-    if amount_info:
-        display = amount_info["display"]
-        currency = amount_info["currency"]
-        factors.append(f"Estimated total value {currency} {display.replace(currency, '').strip()}")
-        if amount_info["amount"] >= 5_000_000:
-            score += 4
-        elif amount_info["amount"] >= 1_000_000:
-            score += 3
-        elif amount_info["amount"] >= 250_000:
-            score += 2
-        else:
-            score += 1
+=== RECOMMENDED ACTION GUIDELINES ===
+- assign_to_handler: Standard assignment
+- assign_to_handler_urgent: High/Critical + urgent indicators
+- escalate: Critical severity or multi-jurisdictional
+- request_documentation: Insufficient information
+- request_survey: Physical inspection needed
+- reject: Coverage issues or fraud indicators
 
-    if any(k in text_lower for k in FIRE_KEYWORDS):
-        factors.append("Fire loss reported")
-        score += 2
+The 'steps' array must include SPECIFIC actions naming the handler:
+Example: "Assign to Markus Breitner (H-DACH-001) — contact m.breitner@nacora.com. Request CMR note and temperature log within 24h."
 
-    if any(k in text_lower for k in TEMP_KEYWORDS):
-        factors.append("Temperature breach indicates spoilage risk")
-        score += 2
+=== LANGUAGE DETECTION ===
+Detect input language and set:
+- detected_language.code (ISO code)
+- detected_language.name (English name)
+- detected_language.confidence (0-100)
+- classification.lob_local_name (in detected language)
+- classification.lob_local_language (detected language code)
 
-    if "total loss" in text_lower or "total losses" in text_lower:
-        factors.append("Total loss reported on at least one shipment")
-        score += 2
+Support: EN, DE, NL, FR, ES, PT, IT, TR, AR, ZH, JA, SV, NO, DA, FI, and others.
 
-    if "multiple" in text_lower and any(k in text_lower for k in ["consignee", "shipment", "pallet", "consignment"]):
-        factors.append("Multiple consignments affected")
-        score += 1
+=== EDGE CASES ===
+- Thin input ("a container fell"): Low confidence, extensive data_gaps
+- No currency: flag financial.amount as null, confidence 0
+- Unknown country: flag geography fields, use region "Global"
+- Trade credit/PI: ALWAYS route to H-GL-003 regardless of region
+- Survey keywords (surveyor, inspection, dispatch, assessment): Add H-GL-004 as secondary"""
 
-    if urgent:
-        factors.append("Urgent request for surveyor appointment or guidance")
-        score += 1
-
-    if "business interruption" in text_lower or "supply chain" in text_lower:
-        factors.append("Potential business interruption or supply chain impact")
-        score += 2
-
-    if any(k in text_lower for k in ["injury", "fatal", "hospital"]):
-        factors.append("Injury impact reported")
-        score += 4
-        critical_trigger = True
-
-    if any(k in text_lower for k in ["lawsuit", "legal", "regulatory", "contractual" ]):
-        factors.append("Legal or contractual exposure flagged")
-        score += 3
-
-    if not factors:
-        factors.append("Limited loss detail provided")
-
-    if critical_trigger or score >= 7:
-        severity = "Critical"
-    elif score >= 4:
-        severity = "High"
-    elif score >= 2:
-        severity = "Medium"
-    else:
-        severity = "Low"
-
-    return severity, factors
-
-
-def _recommended_handler(claim_type, subtype, region):
-    if "marine cargo" in claim_type:
-        speciality = "Marine cargo"
-        if subtype in ["fire", "water damage"]:
-            speciality = "Warehouse/fire cargo"
-        elif subtype == "temperature breach":
-            speciality = "Cold-chain cargo"
-        return {
-            "name": f"{region} Cargo Desk",
-            "role": "Senior Marine Cargo Claims Handler",
-            "region": region,
-            "speciality": speciality,
-            "reason": f"Loss involves {claim_type} exposure with {subtype} damage in {region}.",
-        }
-
-    if claim_type == "liability":
-        return {
-            "name": f"{region} Liability Desk",
-            "role": "Liability Claims Handler",
-            "region": region,
-            "speciality": "General liability",
-            "reason": f"Liability indicators present for a loss in {region}.",
-        }
-
-    return {
-        "name": f"{region} Claims Desk",
-        "role": "Claims Handler",
-        "region": region,
-        "speciality": "General commercial",
-        "reason": f"Claim appears to be non-specialty in {region}.",
-    }
-
-
-def _build_prompt(fnol_text):
-    instructions = """
-You are an expert insurance FNOL (First Notice of Loss) triage assistant.
-
-Your task is to analyze an incoming loss notification and produce a structured triage decision that a broker or claims handler can act on immediately.
-
-INSTRUCTIONS
-- Classify the claim using real insurance categories
-- Assess severity based on exposure, urgency, and risk
-- Provide clear reasoning for severity
-- Recommend the next action (not just classification)
-- Recommend the most appropriate handler with justification
-
-OUTPUT FORMAT (STRICT)
-Return ONLY valid JSON. Do not include any text outside JSON.
-Do NOT wrap the JSON in markdown code fences.
-
-{
-  "claim_type": "",
-  "claim_subtype": "",
-  "severity": "",
-  "severity_factors": [],
-  "recommended_action": "",
-  "action_reasoning": "",
-  "recommended_handler": {
-    "name": "",
-    "role": "",
-    "region": "",
-    "speciality": "",
-    "reason": ""
-  }
-}
-
-VALID VALUES
-Claim Type:
-- cargo
-- marine
-- liability
-- other
-- or combination like "marine cargo"
-
-Severity:
-- Low
-- Medium
-- High
-- Critical
-
-Recommended Action:
-- assign_to_handler
-- assign_to_handler_urgent
-- escalate
-- request_documentation
-- reject
-
-Decision Guidelines
-- Always explain WHY in severity_factors with concrete details.
-- High + urgent -> assign_to_handler_urgent
-- Critical -> escalate
-- Missing documents -> request_documentation
-- Coverage issues -> reject
-- Otherwise -> assign_to_handler
-
-Action Reasoning must include:
-- What to do next
-- Time expectation if urgent
-- What documents to review or request
-- Any escalation requirement
-"""
-    return f"{instructions}\n\nINPUT:\n{fnol_text}\n"
+    return prompt
 
 
-def _bedrock_triage(fnol_text):
-    prompt = _build_prompt(fnol_text)
+def _invoke_bedrock(fnol_text: str) -> Dict:
+    """Invoke Bedrock with the FNOL text and return parsed JSON"""
+
+    system_prompt = _build_system_prompt()
+    user_prompt = f"""FNOL INPUT:
+{fnol_text}
+
+Return the complete JSON triage output as specified. Remember:
+- Use ONLY real handlers from the pool
+- Use ONLY real LoB codes from taxonomy
+- Flag ALL missing fields in data_gaps
+- Include handler email and phone in action steps
+- NO markdown code fences - just pure JSON"""
+
     try:
         response = bedrock_runtime_client.invoke_model(
             modelId=INFERENCE_PROFILE_ARN,
@@ -487,73 +386,104 @@ def _bedrock_triage(fnol_text):
             accept="application/json",
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 1200,
+                "max_tokens": 4000,
                 "temperature": 0.1,
+                "system": system_prompt,
                 "messages": [
                     {
                         "role": "user",
-                        "content": [{"type": "text", "text": prompt}],
+                        "content": [{"type": "text", "text": user_prompt}],
                     }
                 ],
             }),
         )
     except Exception as exc:
         raise RuntimeError(f"Bedrock invoke_model failed: {exc}") from exc
+
+    # Parse response
     body = response.get("body")
     payload = body.read().decode("utf-8") if hasattr(body, "read") else body
-    if not payload or not str(payload).strip():
-        raise ValueError("Empty Bedrock response body. Check region/permissions.")
 
-    text = ""
+    if not payload or not str(payload).strip():
+        raise ValueError("Empty Bedrock response body")
+
     try:
         result = json.loads(payload)
         if isinstance(result, dict):
-            if "error" in result or "message" in result and "content" not in result:
-                raise ValueError(f"Bedrock error: {result.get('error') or result.get('message')}")
             content = result.get("content")
             if isinstance(content, list) and content:
                 text = content[0].get("text", "").strip()
-            elif isinstance(result.get("completion"), str):
-                text = result["completion"].strip()
-            elif isinstance(result.get("output"), dict):
-                output = result["output"]
-                message = output.get("message", {})
-                if isinstance(message, dict):
-                    output_content = message.get("content", [])
-                    if isinstance(output_content, list) and output_content:
-                        text = output_content[0].get("text", "").strip()
-            elif isinstance(result.get("generation"), str):
-                text = result["generation"].strip()
+            else:
+                raise ValueError(f"Unexpected response format: {str(result)[:200]}")
     except json.JSONDecodeError:
-        raise ValueError(f"Non-JSON response from Bedrock: {str(payload)[:200]}")
+        raise ValueError(f"Non-JSON response: {str(payload)[:200]}")
 
-    if not text:
-        raise ValueError(f"Unrecognized Bedrock response: {str(payload)[:200]}")
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```(?:json)?", "", cleaned, flags=re.IGNORECASE).strip()
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3].strip()
+    # Clean up markdown code fences if present
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?", "", text, flags=re.IGNORECASE).strip()
+        if text.endswith ("```"):
+            text = text[:-3].strip()
+
+    # Parse as JSON
     try:
-        json.loads(cleaned)
+        triage_data = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Model did not return JSON: {exc}. Raw: {cleaned[:200]}") from exc
-    return cleaned
+        raise ValueError(f"Model did not return valid JSON: {exc}. Raw: {text[:300]}") from exc
+
+    return triage_data
+
+
+def _enrich_with_handler_details(triage_data: Dict) -> Dict:
+    """Enrich handler recommendations with full contact details"""
+
+    handlers = triage_data.get("handlers", {})
+
+    # Enrich primary handler
+    if "primary" in handlers:
+        handler_id = handlers["primary"]["handler_id"]
+        handler_data = next((h for h in HANDLER_POOL if h["id"] == handler_id), None)
+        if handler_data:
+            handlers["primary"]["name"] = handler_data["name"]
+            handlers["primary"]["email"] = handler_data["email"]
+            handlers["primary"]["phone"] = handler_data["phone"]
+            handlers["primary"]["role"] = f"{handler_data['seniority']} {handler_data['region']} Handler"
+            handlers["primary"]["specialities"] = handler_data["specialities"]
+
+    # Enrich secondary handler
+    if "secondary" in handlers and handlers["secondary"]:
+        handler_id = handlers["secondary"]["handler_id"]
+        handler_data = next((h for h in HANDLER_POOL if h["id"] == handler_id), None)
+        if handler_data:
+            handlers["secondary"]["name"] = handler_data["name"]
+            handlers["secondary"]["email"] = handler_data["email"]
+            handlers["secondary"]["phone"] = handler_data["phone"]
+            handlers["secondary"]["role"] = handlers["secondary"].get("role_in_claim", f"{handler_data['seniority']} Specialist")
+
+    triage_data["handlers"] = handlers
+    return triage_data
 
 
 def triage_fnol(
-    free_text,
+    free_text: str,
     doc_file,
-    insured_name,
-    policy_number,
-    location,
-    estimated_value,
-    urgency_notes,
-    documents_list,
-    extra_notes,
-):
+    insured_name: str,
+    policy_number: str,
+    location: str,
+    estimated_value: str,
+    urgency_notes: str,
+    documents_list: str,
+    extra_notes: str,
+) -> str:
+    """
+    Main FNOL triage function
+    Returns JSON string with complete triage output
+    """
+
+    # Extract document text if uploaded
     doc_text = _extract_text_from_upload(doc_file)
 
+    # Combine all inputs
     structured_text = _normalize_text(
         free_text,
         doc_text,
@@ -566,30 +496,151 @@ def triage_fnol(
         f"Notes: {extra_notes}" if extra_notes else "",
     )
 
-    try:
-        return _bedrock_triage(structured_text)
-    except Exception as exc:
-        debug_detail = ""
-        if DEBUG_BEDROCK:
-            debug_detail = f"Debug: {str(exc)}"
+    # Handle empty input
+    if not structured_text or len(structured_text) < 10:
         fallback = {
-            "claim_type": "other",
-            "claim_subtype": "unparsed",
-            "severity": "Medium",
-            "severity_factors": [
-                "Bedrock triage failed; returning fallback response",
-                str(exc),
-                debug_detail if debug_detail else None,
-            ],
-            "recommended_action": "request_documentation",
-            "action_reasoning": "Re-run FNOL triage after confirming Bedrock credentials and policy data. Request incident report, photos, and shipment documents.",
-            "recommended_handler": {
-                "name": "EMEA Claims Desk",
-                "role": "Claims Handler",
-                "region": "EMEA",
-                "speciality": "General commercial",
-                "reason": "Fallback response due to Bedrock error.",
+            "fnol_id": _generate_fnol_id(),
+            "timestamp": datetime.now().isoformat() + "Z",
+            "detected_language": {"code": "EN", "name": "English", "confidence": 50},
+            "classification": {
+                "lob_code": "unclassified",
+                "lob_display_name": "Unclassified",
+                "lob_local_name": "Unclassified",
+                "lob_local_language": "EN",
+                "insurance_product": "not_detected",
+                "confidence": 0,
+                "reasoning": "Insufficient input provided for classification"
             },
+            "severity": {
+                "level": "Low",
+                "score": 0,
+                "confidence": 0,
+                "factors": [{"text": "No information provided", "weight": "minor"}]
+            },
+            "financial": {"amount": None, "currency": None, "original_text": None, "confidence": 0},
+            "geography": {
+                "country": None, "country_name": None, "city": None,
+                "specific_location": None, "region": "Global", "confidence": 0
+            },
+            "policy": {"number": None, "confidence": 0},
+            "recommended_action": {
+                "action": "request_documentation",
+                "label": "Request Documentation",
+                "reasoning": "Insufficient information to triage claim",
+                "steps": [
+                    "Request complete loss notification with details",
+                    "Obtain policy number, date of loss, and location",
+                    "Request estimated value and description of damage"
+                ]
+            },
+            "handlers": {
+                "primary": {
+                    "handler_id": "H-GL-002",
+                    "match_reason": "Global escalation for incomplete submission",
+                    "name": "David Okonkwo",
+                    "email": "d.okonkwo@nacora.com",
+                    "phone": "+44 20 1234 5632",
+                    "role": "Manager Global Handler"
+                }
+            },
+            "data_gaps": [
+                {"field": "claim_description", "prompt": "Please provide a description of what happened"},
+                {"field": "policy_number", "prompt": "Please provide the policy number"},
+                {"field": "date_of_loss", "prompt": "Please provide the date of loss"},
+                {"field": "location", "prompt": "Please provide where the loss occurred"},
+                {"field": "estimated_value", "prompt": "Please provide the estimated value of the loss"}
+            ],
+            "reasoning_trace": {
+                "chain": ["Input too short to perform meaningful triage"],
+                "risk_flags": [],
+                "confidence_overall": 0,
+                "ai_deductions": []
+            },
+            "bms_integration": {
+                "policy_number_field": "Links to existing policy record in NacoraHub",
+                "handler_id_field": "Pre-fills Assigned To field",
+                "lob_code_field": "Maps to BMS product taxonomy",
+                "severity_field": "Sets SLA timer in BMS queue",
+                "financial_field": "Pre-fills Estimated Loss",
+                "open_cover_flag": "Triggers Open Cover module"
+            }
         }
-        fallback["severity_factors"] = [item for item in fallback["severity_factors"] if item]
-        return json.dumps(fallback, ensure_ascii=True)
+        return json.dumps(fallback, ensure_ascii=False, indent=2)
+
+    try:
+        # Invoke Bedrock for AI-driven triage
+        triage_data = _invoke_bedrock(structured_text)
+
+        # Add FNOL ID and timestamp
+        triage_data["fnol_id"] = _generate_fnol_id()
+        triage_data["timestamp"] = datetime.now().isoformat() + "Z"
+
+        # Enrich with handler details
+        triage_data = _enrich_with_handler_details(triage_data)
+
+        return json.dumps(triage_data, ensure_ascii=False, indent=2)
+
+    except Exception as exc:
+        # Graceful fallback on error
+        fallback = {
+            "fnol_id": _generate_fnol_id(),
+            "timestamp": datetime.now().isoformat() + "Z",
+            "detected_language": {"code": "EN", "name": "English", "confidence": 50},
+            "classification": {
+                "lob_code": "unclassified",
+                "lob_display_name": "Unclassified",
+                "lob_local_name": "Unclassified",
+                "lob_local_language": "EN",
+                "insurance_product": "not_detected",
+                "confidence": 0,
+                "reasoning": f"Triage error: {str(exc)[:100]}"
+            },
+            "severity": {
+                "level": "Medium",
+                "score": 50,
+                "confidence": 0,
+                "factors": [{"text": "Triage system error - manual review needed", "weight": "primary"}]
+            },
+            "financial": {"amount": None, "currency": None, "original_text": None, "confidence": 0},
+            "geography": {
+                "country": None, "country_name": None, "city": None,
+                "specific_location": None, "region": "Global", "confidence": 0
+            },
+            "policy": {"number": None, "confidence": 0},
+            "recommended_action": {
+                "action": "escalate",
+                "label": "Escalate to Manager",
+                "reasoning": f"System error during triage: {str(exc)[:200]}",
+                "steps": [
+                    "Contact David Okonkwo (H-GL-002) — d.okonkwo@nacora.com",
+                    "Forward original FNOL text for manual review",
+                    "Check system logs and retry if needed"
+                ]
+            },
+            "handlers": {
+                "primary": {
+                    "handler_id": "H-GL-002",
+                    "match_reason": "Global escalation for system error",
+                    "name": "David Okonkwo",
+                    "email": "d.okonkwo@nacora.com",
+                    "phone": "+44 20 1234 5632",
+                    "role": "Manager Global Handler"
+                }
+            },
+            "data_gaps": [],
+            "reasoning_trace": {
+                "chain": [f"Error during AI triage: {str(exc)[:150]}"],
+                "risk_flags": [{"flag": "System error - requires manual intervention", "severity": "high"}],
+                "confidence_overall": 0,
+                "ai_deductions": []
+            },
+            "bms_integration": {
+                "policy_number_field": "Links to existing policy record in NacoraHub",
+                "handler_id_field": "Pre-fills Assigned To field",
+                "lob_code_field": "Maps to BMS product taxonomy",
+                "severity_field": "Sets SLA timer in BMS queue",
+                "financial_field": "Pre-fills Estimated Loss",
+                "open_cover_flag": "Triggers Open Cover module"
+            }
+        }
+        return json.dumps(fallback, ensure_ascii=False, indent=2)

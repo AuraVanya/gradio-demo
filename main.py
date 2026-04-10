@@ -178,28 +178,60 @@ def triage_and_parse(
     except json.JSONDecodeError:
         return json_str, "", "", "", "", "", "", ""
 
-    severity_factors = data.get("severity_factors", [])
-    severity_factors_text = "\n".join([f"• {item}" for item in severity_factors])
-    handler = data.get("recommended_handler", {}) or {}
-    handler_summary = " ".join(
-        part for part in [
-            f"{handler.get('name', '')}",
-            f"— {handler.get('role', '')}" if handler.get("role") else "",
-            f"({handler.get('region', '')}, {handler.get('speciality', '')})"
-            if handler.get("region") or handler.get("speciality") else "",
-        ] if part
-    ).strip()
-    if handler.get("reason"):
-        handler_summary = f"{handler_summary}\n{handler.get('reason')}".strip()
+    # Extract classification
+    classification = data.get("classification", {})
+    claim_type = f"{classification.get('lob_display_name', '')} ({classification.get('lob_code', '')})"
+
+    # Extract insurance product (replaces claim_subtype)
+    insurance_product = classification.get("insurance_product", "")
+
+    # Extract severity with score
+    severity_data = data.get("severity", {})
+    severity_level = severity_data.get("level", "")
+    severity_score = severity_data.get("score", 0)
+    severity_display = f"{severity_level} ({severity_score}/100)"
+
+    # Extract severity factors with weights
+    severity_factors = severity_data.get("factors", [])
+    severity_factors_text = "\n".join([
+        f"[{item.get('weight', '').upper()}] {item.get('text', '')}"
+        for item in severity_factors
+    ])
+
+    # Extract recommended action
+    action_data = data.get("recommended_action", {})
+    action_label = action_data.get("label", "")
+    action_reasoning = action_data.get("reasoning", "")
+
+    # Extract steps as formatted list
+    steps = action_data.get("steps", [])
+    steps_text = "\n".join([f"• {step}" for step in steps]) if steps else ""
+    action_full = f"{action_reasoning}\n\nNext Steps:\n{steps_text}" if steps else action_reasoning
+
+    # Extract handler information with full details
+    handlers = data.get("handlers", {})
+    primary = handlers.get("primary", {})
+    secondary = handlers.get("secondary")
+
+    handler_summary = f"PRIMARY: {primary.get('name', '')} ({primary.get('handler_id', '')})\n"
+    handler_summary += f"Role: {primary.get('role', '')}\n"
+    handler_summary += f"Email: {primary.get('email', '')} | Phone: {primary.get('phone', '')}\n"
+    handler_summary += f"Reason: {primary.get('match_reason', '')}"
+
+    if secondary:
+        handler_summary += f"\n\nSECONDARY: {secondary.get('name', '')} ({secondary.get('handler_id', '')})\n"
+        handler_summary += f"Role: {secondary.get('role', '')}\n"
+        handler_summary += f"Email: {secondary.get('email', '')} | Phone: {secondary.get('phone', '')}\n"
+        handler_summary += f"Reason: {secondary.get('match_reason', '')}"
 
     return (
         json_str,
-        data.get("claim_type", ""),
-        data.get("claim_subtype", ""),
-        data.get("severity", ""),
-        data.get("recommended_action", ""),
+        claim_type,
+        insurance_product,
+        severity_display,
+        action_label,
         severity_factors_text,
-        data.get("action_reasoning", ""),
+        action_full,
         handler_summary,
     )
 
@@ -281,7 +313,7 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage Prototype") as demo:
                                 elem_classes="card",
                             )
                             claim_subtype_out = gr.Textbox(
-                                label="Claim subtype",
+                                label="Insurance Product",
                                 interactive=False,
                                 elem_classes="card",
                             )

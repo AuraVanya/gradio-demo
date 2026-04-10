@@ -1,0 +1,260 @@
+{
+  "lines_of_business": [
+    {
+      "lob_code": "marine_cargo",
+      "display_name": "Marine Cargo",
+      "local_names": {
+        "DE": "Warentransportversicherung",
+        "NL": "Goederentransport",
+        "ES": "Seguro de Carga Marítima",
+        "FR": "Assurance Fret Maritime",
+        "IT": "Assicurazione Merci Marine",
+        "PT": "Seguro de Carga Marítima",
+        "TR": "Deniz Kargo Sigortası",
+        "AR": "تأمين البضائع البحرية",
+        "ZH": "海运货物保险",
+        "JA": "海上貨物保険"
+      }
+    },
+    {
+      "lob_code": "refrigerated_cargo",
+      "display_name": "Refrigerated Cargo",
+      "local_names": {
+        "DE": "Kühlgut-Transport",
+        "NL": "Gekoelde Lading",
+        "ES": "Carga Refrigerada",
+        "FR": "Fret Réfrigéré",
+        "IT": "Carico Refrigerato",
+        "PT": "Carga Refrigerada",
+        "TR": "Soğutulmuş Kargo",
+        "AR": "البضائع المبردة",
+        "ZH": "冷藏货物",
+        "JA": "冷蔵貨物"
+      }
+    },
+    {
+      "lob_code": "cargo_open_cover",
+      "display_name": "Cargo Open Cover",
+      "local_names": {
+        "DE": "Laufende Versicherung",
+        "NL": "Open Dekking",
+        "ES": "Póliza Abierta de Carga",
+        "FR": "Police Ouverte Fret",
+        "IT": "Polizza Aperta Merci",
+        "PT": "Apólice Aberta de Carga",
+        "TR": "Açık Poliçe Kargo",
+        "AR": "وثيقة مفتوحة للبضائع",
+        "ZH": "开口保单",
+        "JA": "包括予定保険"
+      }
+    },
+    {
+      "lob_code": "goods_in_transit",
+      "display_name": "Goods in Transit",
+      "local_names": {
+        "DE": "Güter im Transit",
+        "NL": "Goederen in Transit",
+        "ES": "Mercancías en Tránsito",
+        "FR": "Marchandises en Transit",
+        "IT": "Merci in Transito",
+        "PT": "Mercadorias em Trânsito",
+        "TR": "Transit Eşya",
+        "AR": "البضائع العابرة",
+        "ZH": "运输中货物",
+        "JA": "輸送中貨物"
+      }
+    },
+    {
+      "lob_code": "transport",
+      "display_name": "Transport",
+      "local_names": {
+        "DE": "Transportversicherung",
+        "NL": "Transportverzekering",
+        "ES": "Seguro de Transporte",
+        "FR": "Assurance Transport",
+        "IT": "Assicurazione Trasporti",
+        "PT": "Seguro de Transporte",
+        "TR": "Nakliyat Sigortası",
+        "AR": "تأمين النقل",
+        "ZH": "运输保险",
+        "JA": "運送保険"
+      }
+    },
+    {
+      "lob_code": "property",
+      "display_name": "Property",
+      "local_names": {
+        "DE": "Sachversicherung",
+        "NL": "Brandverzekering",
+        "ES": "Seguro de Propiedad",
+        "FR": "Assurance des Biens",
+        "IT": "Assicurazione Proprietà",
+        "PT": "Seguro de Propriedade",
+        "TR": "Mal Sigortası",
+        "AR": "تأمين الممتلكات",
+        "ZH": "财产保险",
+        "JA": "財産保険"
+      }
+    },
+    {
+      "lob_code": "motor",
+      "display_name": "Motor / Fleet",
+      "local_names": {
+        "DE": "Kfz-Versicherung",
+        "NL": "Motorrijtuigverzekering",
+        "ES": "Seguro de Automóvil",
+        "FR": "Assurance Automobile",
+        "IT": "Assicurazione Auto",
+        "PT": "Seguro Automóvel",
+        "TR": "Motor Sigortası",
+        "AR": "تأمين السيارات",
+        "ZH": "汽车保险",
+        "JA": "自動車保険"
+      }
+    },
+    {
+      "lob_code": "car_fleet",
+      "display_name": "Car Fleet",
+      "local_names": {
+        "DE": "Flottenversicherung",
+        "NL": "Wagenparkverzeking",
+        "ES": "Flota de Vehículos",
+        "FR": "Flotte Automobile",
+        "IT": "Flotta Auto",
+        "PT": "Frota de Veículos",
+        "TR": "Araç Filosu Sigortası",
+        "AR": "تأمين أسطول المركبات",
+        "ZH": "车队保险",
+        "JA": "車両フリート保険"
+      }
+    },
+    {
+      "lob_code": "liability_general",
+      "display_name": "General Liability",
+      "local_names": {
+        "DE": "Betriebshaftpflicht",
+        "NL": "Bedrijfsaansprakelijkheid",
+        "ES": "Responsabilidad Civil",
+        "FR": "Responsabilité Civile",
+        "IT": "Responsabilità Civile",
+        "PT": "Responsabilidade Civil",
+        "TR": "Genel Sorumluluk",
+        "AR": "التأمين ضد المسؤولية",
+        "ZH": "一般责任保险",
+        "JA": "一般賠償責任保険"
+      }
+    },
+    {
+      "lob_code": "liability_employers",
+      "display_name": "Employers Liability",
+      "local_names": {
+        "DE": "Arbeitgeberhaftpflicht",
+        "NL": "Werkgeversaansprakelijkheid",
+        "ES": "Responsabilidad Patronal",
+        "FR": "Responsabilité Employeur",
+        "IT": "Responsabilità Datore di Lavoro",
+        "PT": "Responsabilidade do Empregador",
+        "TR": "İşveren Sorumluluğu",
+        "AR": "مسؤولية صاحب العمل",
+        "ZH": "雇主责任保险",
+        "JA": "使用者賠償責任保険"
+      }
+    },
+    {
+      "lob_code": "personal_accident",
+      "display_name": "Personal Accident",
+      "local_names": {
+        "DE": "Unfallversicherung",
+        "NL": "Persoonlijke Ongevallen",
+        "ES": "Accidentes Personales",
+        "FR": "Accidents Corporels",
+        "IT": "Infortuni Personali",
+        "PT": "Acidentes Pessoais",
+        "TR": "Kişisel Kaza Sigortası",
+        "AR": "تأمين الحوادث الشخصية",
+        "ZH": "个人意外保险",
+        "JA": "傷害保険"
+      }
+    },
+    {
+      "lob_code": "equipment_kasko",
+      "display_name": "Equipment Kasko",
+      "local_names": {
+        "DE": "Maschinen-Kasko",
+        "NL": "Apparatuur Casco",
+        "ES": "Kasko de Equipos",
+        "FR": "Corps d'Équipement",
+        "IT": "Casco Attrezzature",
+        "PT": "Casco de Equipamentos",
+        "TR": "Ekipman Kasko",
+        "AR": "تأمين معدات كاسكو",
+        "ZH": "设备全险",
+        "JA": "機器車両保険"
+      }
+    },
+    {
+      "lob_code": "equipment_liability",
+      "display_name": "Equipment Liability",
+      "local_names": {
+        "DE": "Maschinen-Haftpflicht",
+        "NL": "Apparatuur Aansprakelijkheid",
+        "ES": "Responsabilidad de Equipos",
+        "FR": "Responsabilité Équipement",
+        "IT": "Responsabilità Attrezzature",
+        "PT": "Responsabilidade de Equipamentos",
+        "TR": "Ekipman Sorumluluğu",
+        "AR": "مسؤولية المعدات",
+        "ZH": "设备责任保险",
+        "JA": "機器賠償責任保険"
+      }
+    },
+    {
+      "lob_code": "trade_credit",
+      "display_name": "Trade Credit",
+      "local_names": {
+        "DE": "Kreditversicherung",
+        "NL": "Kredietverzekering",
+        "ES": "Seguro de Crédito",
+        "FR": "Assurance-Crédit",
+        "IT": "Assicurazione Crediti",
+        "PT": "Seguro de Crédito",
+        "TR": "Ticari Kredi Sigortası",
+        "AR": "تأمين الائتمان التجاري",
+        "ZH": "贸易信用保险",
+        "JA": "取引信用保険"
+      }
+    },
+    {
+      "lob_code": "professional_indemnity",
+      "display_name": "Professional Indemnity",
+      "local_names": {
+        "DE": "Berufshaftpflicht",
+        "NL": "Beroepsaansprakelijkheid",
+        "ES": "Indemnidad Profesional",
+        "FR": "Responsabilité Professionnelle",
+        "IT": "Responsabilità Professionale",
+        "PT": "Indemnidade Profissional",
+        "TR": "Mesleki Sorumluluk",
+        "AR": "التأمين المهني",
+        "ZH": "职业责任保险",
+        "JA": "専門職賠償責任保険"
+      }
+    },
+    {
+      "lob_code": "group_accident",
+      "display_name": "Group Accident",
+      "local_names": {
+        "DE": "Gruppenunfallversicherung",
+        "NL": "Collectieve Ongevallen",
+        "ES": "Accidentes Colectivos",
+        "FR": "Accidents Collectifs",
+        "IT": "Infortuni Collettivi",
+        "PT": "Acidentes Coletivos",
+        "TR": "Grup Kaza Sigortası",
+        "AR": "تأمين الحوادث الجماعية",
+        "ZH": "团体意外保险",
+        "JA": "団体傷害保険"
+      }
+    }
+  ]
+}
