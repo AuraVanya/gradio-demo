@@ -114,19 +114,28 @@
 - 16 LoB codes loaded from `nacora_lob_taxonomy.json`
 - 39 country mappings loaded from `country_region_mapping.json`
 
-## 🚀 NEXT STEPS - P1 & P2
+## ✅ COMPLETED - P1 Requirements
 
-### P1 - High Priority (Week 2)
-- [ ] Multilingual handler matching (REQ-12)
+### P1 - High Priority (✅ Complete - Tested 2026-04-10)
+- ✅ Multilingual handler matching (REQ-12)
   - Match input language to handler languages
   - Prefer handlers speaking detected language
-- [ ] Trade Credit/PI explicit routing (REQ-13)
+  - **Test Result**: Turkish input → H-MT-001 (Emre Yilmaz) at 98% confidence
+- ✅ Trade Credit/PI explicit routing (REQ-13)
   - Add keywords: insolvency, credit default, broker errors, E&O
   - Ensure routes to H-GL-003
-- [ ] "What We Still Need" panel (REQ-08)
+  - **Test Results**:
+    - Trade credit (insolvency) → H-GL-003 (Nina Bergström) ✅
+    - Professional indemnity (E&O) → H-GL-003 (Nina Bergström) ✅
+- ✅ "What We Still Need" panel (REQ-08)
   - Replace input preview
   - Show data gaps with inline entry
   - Build on existing claim context
+  - **Test Result**: Thin input → 9 data gaps detected with user prompts
+
+**See `P1_TEST_RESULTS.md` for detailed test output**
+
+## 🚀 NEXT STEPS - P2 & P3
 
 ### P2 - Standard (Week 3)
 - [ ] Confidence warnings (REQ-16)
@@ -163,7 +172,12 @@ schemas/
 └── fnol_schema.py                    ✅ Pydantic models for JSON output
 
 functions/
-└── fnol_triage.py                    ✅ Complete rewrite with P0 requirements
+└── fnol_triage.py                    ✅ Complete rewrite with P0 + P1 requirements
+
+testing/
+├── test_p1.py                        ✅ P1 automated test script
+├── P1_TEST_SCENARIOS.md              ✅ P1 test scenarios documentation
+└── P1_TEST_RESULTS.md                ✅ P1 test results with all tests passing
 ```
 
 ## 🎯 SCORING IMPACT
@@ -180,7 +194,14 @@ functions/
 - Insurance relevance: 14/15 (real handlers, correct taxonomy, global regions)
 - Output clarity: 15/15 (numeric scores, weighted factors, specific actions)
 
-**Potential with P3 bonuses:** 68/70 + 10 bonus = 78/80 total
+**After P1:** ~65/70 base points (+7 points from P1)
+- Working demo: 20/20 (multilingual, data gaps, TC/PI routing - all tested ✅)
+- AI leverage: 20/20 (multilingual detection, financial lines keywords)
+- Insurance relevance: 15/15 (global coverage + specialized routing)
+- Output clarity: 15/15 (maintained)
+
+**Potential with P3 bonuses:** 65/70 + 10 bonus = 75/80 total
+**Note**: Multilingual input (+5 pts) is ALREADY working - Turkish test passed!
 
 ## 🔧 HOW TO TEST
 
@@ -205,13 +226,13 @@ functions/
 
 ## 📋 KNOWN ISSUES
 
-- None currently - all P0 requirements implemented and tested
+- None currently - all P0 and P1 requirements implemented and tested ✅
 
 ## 💡 RECOMMENDATIONS
 
-1. **P1 Focus**: Multilingual handler matching has highest ROI (+5 points for full multilingual)
-2. **Quick Wins**: Confidence warnings and sample claims repositioning are easy (<1 hour each)
-3. **BMS Pitch**: Pre-record the 60-second pitch to ensure smooth delivery
+1. **P3 Bonuses**: Multilingual input (+5 pts) is already working - just needs documentation
+2. **Quick Wins**: AI reasoning trace (+3 pts) is already in JSON, just needs UI toggle
+3. **BMS Pitch**: Pre-record the 60-second pitch to ensure smooth delivery (+2 pts)
 
 Generated: 2026-04-10
-Status: P0 Complete ✅
+Status: **P0 Complete ✅ | P1 Complete and Tested ✅**

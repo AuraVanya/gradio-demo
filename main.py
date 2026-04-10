@@ -301,7 +301,7 @@ def triage_and_parse(
     try:
         data = json.loads(json_str)
     except json.JSONDecodeError:
-        return json_str, "", "", "", "", "", "", ""
+        return json_str, "", "", "", "", "", "", "", "Error parsing JSON", "Unknown"
 
     # Extract classification
     classification = data.get("classification", {})
@@ -349,6 +349,20 @@ def triage_and_parse(
         handler_summary += f"Email: {secondary.get('email', '')} | Phone: {secondary.get('phone', '')}\n"
         handler_summary += f"Reason: {secondary.get('match_reason', '')}"
 
+    # Extract data gaps for "What We Still Need" panel
+    data_gaps = data.get("data_gaps", [])
+    if data_gaps:
+        gaps_text = "\n".join([
+            f"• {gap.get('field', 'Unknown')}: {gap.get('prompt', 'Please provide this information')}"
+            for gap in data_gaps
+        ])
+    else:
+        gaps_text = "✓ All key information detected"
+
+    # Extract language detection
+    detected_lang = data.get("detected_language", {})
+    lang_display = f"{detected_lang.get('name', 'Unknown')} ({detected_lang.get('code', 'N/A')}) - {detected_lang.get('confidence', 0)}% confidence"
+
     return (
         json_str,
         claim_type,
@@ -358,6 +372,8 @@ def triage_and_parse(
         severity_factors_text,
         action_full,
         handler_summary,
+        gaps_text,
+        lang_display,
     )
 
 
@@ -435,6 +451,15 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
             # Right: output panel
             with gr.Column(scale=4, elem_classes="panel"):
                 gr.Markdown("Structured triage card", elem_classes="label")
+
+                # Language detection banner
+                lang_out = gr.Textbox(
+                    label="Detected Language",
+                    interactive=False,
+                    elem_classes="card",
+                    lines=1,
+                )
+
                 with gr.Row():
                     claim_type_out = gr.Textbox(
                         label="Claim type",
@@ -442,7 +467,7 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
                         elem_classes="card",
                     )
                     claim_subtype_out = gr.Textbox(
-                        label="Claim subtype",
+                        label="Insurance Product",
                         interactive=False,
                         elem_classes="card",
                     )
@@ -475,6 +500,15 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
                     interactive=False,
                     elem_classes="card",
                 )
+
+                # What We Still Need panel (REQ-08)
+                gaps_out = gr.Textbox(
+                    label="What We Still Need",
+                    lines=4,
+                    interactive=False,
+                    elem_classes="card",
+                )
+
                 json_out = gr.Textbox(
                     label="Structured JSON output",
                     lines=12,
@@ -505,6 +539,8 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
                 severity_factors_out,
                 action_reasoning_out,
                 handler_out,
+                gaps_out,
+                lang_out,
             ],
         )
 

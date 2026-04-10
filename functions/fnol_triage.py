@@ -216,13 +216,40 @@ CRITICAL RULES:
 Priority 1 (HIGHEST): severity == Critical AND claim_value > 500,000 → H-GL-002 (David Okonkwo)
 Priority 2: lob IN [trade_credit, professional_indemnity] → H-GL-003 (Nina Bergström)
 Priority 3: survey/inspection needed → ADD H-GL-004 (Youssef Benali) as SECONDARY
-Priority 4 (DEFAULT): Match on region, then specialities, then seniority
+Priority 4 (DEFAULT): Match on region, then specialities, then language match, then seniority
+
+=== TRADE CREDIT / PROFESSIONAL INDEMNITY DETECTION (REQ-13) ===
+Route to H-GL-003 (Nina Bergström) when claim mentions ANY of these keywords:
+- Trade Credit: insolvency, insolvent, bankruptcy, bankrupt, credit default, non-payment,
+  debtor failure, receivables, credit insurance, buyer insolvency, payment default
+- Professional Indemnity: professional negligence, errors and omissions, E&O, broker error,
+  misrepresentation, professional liability, advice negligence, duty of care breach,
+  malpractice, professional misconduct, fiduciary breach
+
+Nina Bergström (H-GL-003) is the ONLY specialist for financial lines globally.
+Do NOT route financial lines to regional handlers - ALWAYS use H-GL-003 as primary.
 
 === SECONDARY HANDLER RULES ===
 - Survey/inspection needed → ALWAYS add H-GL-004 as secondary
 - Critical + value >500k → add H-GL-002 as secondary (or primary if Priority 1)
 - Trade credit or PI → H-GL-003 is ALWAYS primary
-- Multilingual: prefer handlers matching detected input language
+- Multilingual matching: CRITICAL - match detected input language to handler languages
+
+=== MULTILINGUAL HANDLER MATCHING (REQ-12) ===
+When input language is detected, PRIORITIZE handlers who speak that language:
+- Turkish input (TR detected) → prefer H-MT-001 (Emre Yilmaz), H-MT-002 (Fatima Al-Hassan)
+- German input (DE detected) → prefer DACH handlers: H-DACH-001 through H-DACH-006
+- Dutch input (NL detected) → prefer Benelux handlers: H-BNL-001 through H-BNL-004
+- Spanish input (ES detected) → prefer H-ES-001 (Antonio Yut), H-LATAM-001 (Pablo Fuentes)
+- Portuguese input (PT detected) → prefer H-LATAM-002 (Valentina Cruz), H-LATAM-003 (Rodrigo Mendes)
+- French input (FR detected) → prefer H-BNL-001 (Celine Dubois), H-GL-002 (David Okonkwo)
+- Arabic input (AR detected) → prefer H-MT-002 (Fatima Al-Hassan), H-GL-004 (Youssef Benali)
+- Chinese input (ZH detected) → prefer H-APAC-001 (Mei-Lin Chow), H-GL-001 (Sarah Chen)
+- Japanese input (JA detected) → prefer H-APAC-002 (Hiroshi Nakamura)
+- Swedish/Nordic input (SV/NO/DA detected) → prefer H-UKN-002 (Astrid Lindqvist), H-UKN-004 (Erik Halvorsen)
+
+ONLY fallback to English-only handlers if NO language match exists in the region.
+This improves customer experience and reduces miscommunication.
 
 === SEVERITY SCORING (0-100) ===
 Score based on:
