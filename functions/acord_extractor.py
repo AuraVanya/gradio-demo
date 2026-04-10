@@ -16,7 +16,7 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
 BUCKET_NAME = "textract-colab-temp-bucket"
-INFERENCE_PROFILE_ARN = "arn:aws:bedrock:us-east-2:694248134873:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+INFERENCE_PROFILE_ARN = "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
 # Initialize clients
 s3_client = boto3.client(

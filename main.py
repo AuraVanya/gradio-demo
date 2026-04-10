@@ -4,11 +4,11 @@ from functions.acord_extractor import process_pdf
 
 # --- Gradio Functions --- #
 
-# Create custom theme with gray buttons
-custom_theme = gr.themes.Default(
-    primary_hue="slate",
-    secondary_hue="slate",
-)
+# # Create custom theme with gray buttons
+# custom_theme = gr.themes.Default(
+#     primary_hue="slate",
+#     secondary_hue="slate",
+# )
 
 # ACORD Form Extractor Gradio Interface
 acord_extractor = gr.Interface(
@@ -59,7 +59,7 @@ demo = gr.TabbedInterface([
     "ACORD Extractor",
     "Vehicle Visual Analysis",
     ],
-    theme=custom_theme
+    # theme=custom_theme
 )
 
 demo.launch(debug=True, share=True)
