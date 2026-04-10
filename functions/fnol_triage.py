@@ -1,7 +1,21 @@
 import json
 import os
 import re
+import time
+from datetime import datetime
 import boto3
+import zipfile
+import xml.etree.ElementTree as ET
+from functions.acord_extractor import (
+    upload_to_s3 as acord_upload_to_s3,
+    get_kv_map,
+    get_kv_relationship,
+    get_kv_pairs,
+)
+from functions.visual_analysis import (
+    upload_image_to_s3,
+    analyze_image_with_rekognition,
+)
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,6 +33,18 @@ INFERENCE_PROFILE_ARN = os.getenv(
 )
 
 bedrock_runtime_client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+textract_client = boto3.client(
+    "textract",
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION,
+)
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION,
+)
 DEBUG_BEDROCK = os.getenv("DEBUG_BEDROCK", "false").lower() in ["1", "true", "yes"]
 
 URGENCY_KEYWORDS = [
@@ -72,6 +98,128 @@ AMOUNT_PATTERN = re.compile(
 def _normalize_text(*parts):
     text = "\n".join(p for p in parts if p)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _upload_to_s3(file_path):
+    filename = os.path.basename(file_path)
+    s3_key = f"fnol-uploads/{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
+    s3_client.upload_file(file_path, BUCKET_NAME, s3_key)
+    return s3_key
+
+
+def _delete_s3_object(s3_key):
+    try:
+        s3_client.delete_object(Bucket=BUCKET_NAME, Key=s3_key)
+    except Exception:
+        pass
+
+
+def _textract_async_text(s3_key):
+    response = textract_client.start_document_text_detection(
+        DocumentLocation={
+            "S3Object": {"Bucket": BUCKET_NAME, "Name": s3_key}
+        }
+    )
+    job_id = response["JobId"]
+    while True:
+        result = textract_client.get_document_text_detection(JobId=job_id)
+        status = result["JobStatus"]
+        if status == "SUCCEEDED":
+            break
+        if status == "FAILED":
+            raise RuntimeError("Textract job failed")
+        time.sleep(2)
+
+    blocks = result.get("Blocks", [])
+    next_token = result.get("NextToken")
+    while next_token:
+        result = textract_client.get_document_text_detection(
+            JobId=job_id,
+            NextToken=next_token,
+        )
+        blocks.extend(result.get("Blocks", []))
+        next_token = result.get("NextToken")
+
+    lines = [block["Text"] for block in blocks if block.get("BlockType") == "LINE"]
+    return "\n".join(lines)
+
+
+def _textract_image_text(file_path):
+    with open(file_path, "rb") as handle:
+        image_bytes = handle.read()
+    result = textract_client.detect_document_text(
+        Document={"Bytes": image_bytes}
+    )
+    blocks = result.get("Blocks", [])
+    lines = [block["Text"] for block in blocks if block.get("BlockType") == "LINE"]
+    return "\n".join(lines)
+
+
+def _extract_docx_text(file_path):
+    texts = []
+    with zipfile.ZipFile(file_path) as docx_zip:
+        with docx_zip.open("word/document.xml") as doc_xml:
+            tree = ET.parse(doc_xml)
+            root = tree.getroot()
+            for elem in root.iter():
+                if elem.tag.endswith("}t") and elem.text:
+                    texts.append(elem.text)
+    return " ".join(texts)
+
+
+def _extract_text_from_upload(file_obj):
+    if file_obj is None or not hasattr(file_obj, "name"):
+        return ""
+    file_path = file_obj.name
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext in [".txt", ".md", ".json"]:
+        try:
+            with open(file_path, "rb") as handle:
+                return handle.read().decode("utf-8", errors="ignore")
+        except Exception:
+            return ""
+
+    if ext in [".pdf", ".tif", ".tiff"]:
+        # Reuse ACORD Textract extraction to build key-value text when possible
+        s3_key = None
+        try:
+            s3_key, err = acord_upload_to_s3(file_obj)
+            if err:
+                return f"S3 upload error: {err}"
+            key_map, value_map, block_map = get_kv_map(s3_key)
+            kvs = get_kv_relationship(key_map, value_map, block_map)
+            extracted_data = get_kv_pairs(kvs)
+            lines = [f"{item['key']}: {item['value']}" for item in extracted_data if item.get("key")]
+            return "\n".join(lines)
+        finally:
+            if s3_key:
+                _delete_s3_object(s3_key)
+
+    if ext in [".png", ".jpg", ".jpeg"]:
+        s3_key = None
+        try:
+            s3_key, err = upload_image_to_s3(file_obj)
+            if err:
+                return f"S3 upload error: {err}"
+            results, err = analyze_image_with_rekognition(s3_key)
+            if err:
+                return f"Rekognition analysis error: {err}"
+            labels = [f"Label: {item['name']} ({item['confidence']:.2f}%)" for item in results.get("labels", [])]
+            texts = [f"Text: {item['detected_text']} ({item['confidence']:.2f}%)" for item in results.get("text_detections", [])]
+            colors = [f"Color: {item['color']} {item['hex']}" for item in results.get("dominant_colors", [])]
+            return "\n".join(labels + texts + colors)
+        finally:
+            if s3_key:
+                _delete_s3_object(s3_key)
+
+    if ext == ".docx":
+        return _extract_docx_text(file_path)
+
+    if ext == ".doc":
+        return "DOC file provided. Please upload DOCX or PDF for text extraction."
+
+    return ""
 
 
 def _extract_amount(text):
@@ -404,13 +552,7 @@ def triage_fnol(
     documents_list,
     extra_notes,
 ):
-    doc_text = ""
-    if doc_file is not None and hasattr(doc_file, "name"):
-        try:
-            with open(doc_file.name, "rb") as handle:
-                doc_text = handle.read().decode("utf-8", errors="ignore")
-        except Exception:
-            doc_text = ""
+    doc_text = _extract_text_from_upload(doc_file)
 
     structured_text = _normalize_text(
         free_text,

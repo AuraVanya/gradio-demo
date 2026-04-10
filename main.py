@@ -246,11 +246,11 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage Prototype") as demo:
                                 extra_notes = gr.Textbox(label="Additional Notes (optional)", lines=3)
                             with gr.Tab("Upload"):
                                 doc_file = gr.File(
-                                    file_types=[".txt", ".md", ".json"],
+                                    file_types=[".txt", ".md", ".json", ".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg"],
                                     label="Upload Extracted Document Text",
                                 )
                                 gr.Markdown(
-                                    "Upload plain text or extracted document text. PDF parsing is not enabled.",
+                                    "Upload text, PDF, DOCX, or image files. PDF/image text is extracted via Textract.",
                                     elem_classes="small-note",
                                 )
 
