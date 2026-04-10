@@ -421,14 +421,14 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
                         documents_list = gr.Textbox(label="Documents Available (optional)")
                         extra_notes = gr.Textbox(label="Additional Notes (optional)", lines=3)
                     with gr.Tab("Upload"):
-                        doc_file = gr.File(
-                            file_types=[".txt", ".md", ".json"],
-                            label="Upload Extracted Document Text",
-                        )
-                        gr.Markdown(
-                            "Upload plain text or extracted document text. PDF parsing is not enabled.",
-                            elem_classes="small-note",
-                        )
+                                doc_file = gr.File(
+                                    file_types=[".txt", ".md", ".json", ".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg", ".tif", ".tiff"],
+                                    label="Upload Extracted Document Text",
+                                )
+                                gr.Markdown(
+                                    "Upload text, PDF, DOCX, or image files. PDF/image text is extracted via Textract.",
+                                    elem_classes="small-note",
+                                )
 
                 with gr.Row():
                     run_btn = gr.Button("Run triage", elem_classes="run-btn")

@@ -276,6 +276,7 @@ Check for these fields and flag as not_detected if missing:
 
 === OUTPUT FORMAT (STRICT JSON) ===
 Return ONLY valid JSON. NO markdown code fences. NO text outside JSON.
+Avoid chain-of-thought. Do NOT output step-by-step reasoning.
 
 {{
   "detected_language": {{"code": "EN", "name": "English", "confidence": 95}},
@@ -316,7 +317,7 @@ Return ONLY valid JSON. NO markdown code fences. NO text outside JSON.
   "recommended_action": {{
     "action": "assign_to_handler_urgent",
     "label": "Assign Urgently to Handler",
-    "reasoning": "Full reasoning for action",
+    "reasoning": "Decision: Approved (Urgent)\nKey Reasons:\n- ...\n- ...\nSupporting Data:\n- ...\nConfidence Score: 82% – High Confidence\nConfidence Drivers: ...\nRecommended Action: ...",
     "steps": ["Step 1...", "Step 2...", "Step 3..."]
   }},
   "handlers": {{
@@ -334,22 +335,8 @@ Return ONLY valid JSON. NO markdown code fences. NO text outside JSON.
     {{"field": "policy_number", "prompt": "Please provide the policy number"}}
   ],
   "reasoning_trace": {{
-    "chain": [
-      "Step 1: Detected language as English with 95% confidence",
-      "Step 2: Extracted geography as Rotterdam, Netherlands",
-      "Step 3: Classified as marine_cargo based on keywords",
-      "Step 4: Assessed severity as High (score: 78/100)",
-      "Step 5: Routed to H-BNL-001 based on region and speciality"
-    ],
-    "risk_flags": [
-      {{"flag": "Time-sensitive claim requiring urgent action", "severity": "high"}},
-      {{"flag": "High-value cargo over EUR 200k", "severity": "medium"}}
-    ],
-    "confidence_overall": 88,
-    "ai_deductions": [
-      "Inferred temperature-sensitive cargo from 'refrigerated' mention",
-      "Deduced surveyor needed based on total loss claim"
-    ]
+    "summary": "Short business summary only. No step-by-step reasoning.",
+    "confidence_overall": 88
   }},
   "bms_integration": {{
     "policy_number_field": "Links to existing policy record in NacoraHub",
@@ -371,6 +358,25 @@ Return ONLY valid JSON. NO markdown code fences. NO text outside JSON.
 
 The 'steps' array must include SPECIFIC actions naming the handler:
 Example: "Assign to Markus Breitner (H-DACH-001) — contact m.breitner@nacora.com. Request CMR note and temperature log within 24h."
+
+=== ACTION REASONING TEMPLATE ===
+Populate recommended_action.reasoning using this exact structure:
+
+Decision: <Approved | Approved (Urgent) | Escalated | Pending Information | Rejected>
+Key Reasons:
+- <2–4 concise bullets tied to specific inputs or rules>
+Supporting Data:
+- <specific inputs or rules used>
+Confidence Score: <percentage and label, e.g., 82% – High Confidence>
+Confidence Drivers: <short reason for confidence>
+Recommended Action: <what to do next, include time expectation if urgent>
+
+Decision mapping:
+- assign_to_handler -> Approved
+- assign_to_handler_urgent -> Approved (Urgent)
+- escalate -> Escalated
+- request_documentation -> Pending Information
+- reject -> Rejected
 
 === LANGUAGE DETECTION ===
 Detect input language and set:
@@ -553,7 +559,18 @@ def triage_fnol(
             "recommended_action": {
                 "action": "request_documentation",
                 "label": "Request Documentation",
-                "reasoning": "Insufficient information to triage claim",
+                "reasoning": (
+                    "Decision: Pending Information\n"
+                    "Key Reasons:\n"
+                    "- FNOL details are missing or too brief\n"
+                    "- Policy, location, and loss value not confirmed\n"
+                    "Supporting Data:\n"
+                    "- Input length below minimum threshold\n"
+                    "Confidence Score: 40% – Low Confidence\n"
+                    "Confidence Drivers: Limited and inconsistent data\n"
+                    "Recommended Action: Request full loss notice, policy number, date of loss, "
+                    "location, and estimated value before triage."
+                ),
                 "steps": [
                     "Request complete loss notification with details",
                     "Obtain policy number, date of loss, and location",
@@ -578,10 +595,8 @@ def triage_fnol(
                 {"field": "estimated_value", "prompt": "Please provide the estimated value of the loss"}
             ],
             "reasoning_trace": {
-                "chain": ["Input too short to perform meaningful triage"],
-                "risk_flags": [],
-                "confidence_overall": 0,
-                "ai_deductions": []
+                "summary": "Input too short for meaningful triage",
+                "confidence_overall": 0
             },
             "bms_integration": {
                 "policy_number_field": "Links to existing policy record in NacoraHub",
@@ -637,7 +652,17 @@ def triage_fnol(
             "recommended_action": {
                 "action": "escalate",
                 "label": "Escalate to Manager",
-                "reasoning": f"System error during triage: {str(exc)[:200]}",
+                "reasoning": (
+                    "Decision: Escalated\n"
+                    "Key Reasons:\n"
+                    "- System error prevented automated triage\n"
+                    "Supporting Data:\n"
+                    f"- Error: {str(exc)[:120]}\n"
+                    "Confidence Score: 30% – Low Confidence\n"
+                    "Confidence Drivers: Triage did not complete\n"
+                    "Recommended Action: Escalate to a senior handler and re-run triage after "
+                    "verifying system connectivity."
+                ),
                 "steps": [
                     "Contact David Okonkwo (H-GL-002) — d.okonkwo@nacora.com",
                     "Forward original FNOL text for manual review",
@@ -656,10 +681,8 @@ def triage_fnol(
             },
             "data_gaps": [],
             "reasoning_trace": {
-                "chain": [f"Error during AI triage: {str(exc)[:150]}"],
-                "risk_flags": [{"flag": "System error - requires manual intervention", "severity": "high"}],
-                "confidence_overall": 0,
-                "ai_deductions": []
+                "summary": "System error during AI triage",
+                "confidence_overall": 0
             },
             "bms_integration": {
                 "policy_number_field": "Links to existing policy record in NacoraHub",
