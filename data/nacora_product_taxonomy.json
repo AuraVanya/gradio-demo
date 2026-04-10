@@ -1,0 +1,136 @@
+{
+  "taxonomy_version": "2.0",
+  "last_updated": "2026-04-10",
+  "description": "Official Nacora insurance product taxonomy - hierarchical classification",
+  "categories": [
+    {
+      "first_grouping": "Property",
+      "first_grouping_code": "PROP",
+      "products": [
+        {"product_name": "Property with and without contents", "product_code": "PROP-001"},
+        {"product_name": "Property (only contents)", "product_code": "PROP-002"},
+        {"product_name": "Property with General Liability", "product_code": "PROP-003"},
+        {"product_name": "Property with General Liability and BI", "product_code": "PROP-004"},
+        {"product_name": "Construction all risk", "product_code": "PROP-005"},
+        {"product_name": "Engineering all risk or energy package", "product_code": "PROP-006"},
+        {"product_name": "Machinery & Equipment", "product_code": "PROP-007"},
+        {"product_name": "Special Solutions", "product_code": "PROP-008"},
+        {"product_name": "Farm", "product_code": "PROP-009"},
+        {"product_name": "Construction all risk + Delay in Start Up (DSU)", "product_code": "PROP-010"},
+        {"product_name": "Other property", "product_code": "PROP-099"}
+      ]
+    },
+    {
+      "first_grouping": "Motor Lines / Car / Auto",
+      "first_grouping_code": "MOTOR",
+      "products": [
+        {"product_name": "Automobile", "product_code": "MOTOR-001"},
+        {"product_name": "Motor General Liability", "product_code": "MOTOR-002"},
+        {"product_name": "Obligatory Personal Accident", "product_code": "MOTOR-003"},
+        {"product_name": "Other Car", "product_code": "MOTOR-099"}
+      ]
+    },
+    {
+      "first_grouping": "Liability",
+      "first_grouping_code": "LIAB",
+      "products": [
+        {"product_name": "General Liability", "product_code": "LIAB-001"},
+        {"product_name": "Liability Errors and Omissions", "product_code": "LIAB-002"},
+        {"product_name": "Port / Airport Liability", "product_code": "LIAB-003"},
+        {"product_name": "Directors & Officers", "product_code": "LIAB-004"},
+        {"product_name": "Crime", "product_code": "LIAB-005"},
+        {"product_name": "Private Equity Protection", "product_code": "LIAB-006"},
+        {"product_name": "Merger & Acquisition", "product_code": "LIAB-007"},
+        {"product_name": "Cyber Risk", "product_code": "LIAB-008"},
+        {"product_name": "Aviation", "product_code": "LIAB-009"},
+        {"product_name": "Environmental Liability", "product_code": "LIAB-010"},
+        {"product_name": "Protection and Indemnity (P&I)", "product_code": "LIAB-011"},
+        {"product_name": "Other Liability", "product_code": "LIAB-099"}
+      ]
+    },
+    {
+      "first_grouping": "Personal Lines",
+      "first_grouping_code": "PERS",
+      "products": [
+        {"product_name": "Health / Dental", "product_code": "PERS-001"},
+        {"product_name": "Life", "product_code": "PERS-002"},
+        {"product_name": "Travel", "product_code": "PERS-003"},
+        {"product_name": "Pets", "product_code": "PERS-004"},
+        {"product_name": "Personal Accident", "product_code": "PERS-005"},
+        {"product_name": "Renters", "product_code": "PERS-006"},
+        {"product_name": "Workers Compensation", "product_code": "PERS-007"},
+        {"product_name": "Home / Habitational", "product_code": "PERS-008"},
+        {"product_name": "Personal Automobile", "product_code": "PERS-009"},
+        {"product_name": "Legal Protection Insurance", "product_code": "PERS-010"},
+        {"product_name": "Disability Insurance", "product_code": "PERS-011"},
+        {"product_name": "Other Personal Lines", "product_code": "PERS-099"}
+      ]
+    },
+    {
+      "first_grouping": "Marine Liability",
+      "first_grouping_code": "MLIAB",
+      "products": [
+        {"product_name": "Logistics Liability", "product_code": "MLIAB-001"},
+        {"product_name": "Cargo Transport Liability", "product_code": "MLIAB-002"},
+        {"product_name": "Other Marine Liability", "product_code": "MLIAB-099"}
+      ]
+    },
+    {
+      "first_grouping": "Trade Credit",
+      "first_grouping_code": "TC",
+      "products": [
+        {"product_name": "Trade Credit (Local Policies)", "product_code": "TC-001"},
+        {"product_name": "Trade Credit (Global Policies)", "product_code": "TC-002"},
+        {"product_name": "Warranties / Bonds", "product_code": "TC-003"},
+        {"product_name": "Other Trade Credit", "product_code": "TC-099"}
+      ]
+    },
+    {
+      "first_grouping": "Marine Cargo",
+      "first_grouping_code": "MCARGO",
+      "products": [
+        {"product_name": "Marine Cargo local / premium flow directly from customer to Nacora", "product_code": "MCARGO-001"},
+        {"product_name": "Marine Cargo via GFH", "product_code": "MCARGO-002"},
+        {"product_name": "Marine Cargo / Stock Throughput", "product_code": "MCARGO-003"},
+        {"product_name": "Marine Cargo with Advance loss of profit", "product_code": "MCARGO-004"},
+        {"product_name": "Containers", "product_code": "MCARGO-005"},
+        {"product_name": "Hull and Machinery (H&M)", "product_code": "MCARGO-006"},
+        {"product_name": "Marine Cargo local / premium flow via KN", "product_code": "MCARGO-007"},
+        {"product_name": "Other Marine Cargo", "product_code": "MCARGO-099"}
+      ]
+    },
+    {
+      "first_grouping": "Global Programs",
+      "first_grouping_code": "GP",
+      "products": [
+        {"product_name": "Property Global Program", "product_code": "GP-PROP"},
+        {"product_name": "Liability Global Program", "product_code": "GP-LIAB"},
+        {"product_name": "Employee Benefit Global Program", "product_code": "GP-EB"},
+        {"product_name": "Logistics Liability Global Program", "product_code": "GP-LOGS"},
+        {"product_name": "Marine Cargo Global Program", "product_code": "GP-MCARGO"},
+        {"product_name": "Trade Credit Insurance", "product_code": "GP-TC"},
+        {"product_name": "Other KN Global Program", "product_code": "GP-OTHER"}
+      ]
+    },
+    {
+      "first_grouping": "Local KN Programs",
+      "first_grouping_code": "LKN",
+      "products": [
+        {"product_name": "Property local KN", "product_code": "LKN-PROP"},
+        {"product_name": "Liability local KN", "product_code": "LKN-LIAB"},
+        {"product_name": "Motor / Fleet local KN", "product_code": "LKN-MOTOR"},
+        {"product_name": "EB local KN", "product_code": "LKN-EB"},
+        {"product_name": "Logistics Liability local KN", "product_code": "LKN-LOGS"},
+        {"product_name": "Marine Cargo local KN", "product_code": "LKN-MCARGO"},
+        {"product_name": "Trade Credit Insurance local KN", "product_code": "LKN-TC"},
+        {"product_name": "Other local KN", "product_code": "LKN-OTHER"}
+      ]
+    }
+  ],
+  "classification_rules": {
+    "always_return_both": "first_grouping AND product_name",
+    "format_display": "First Grouping – Product Name",
+    "example": "Property – Construction all risk",
+    "fallback": "If uncertain, use 'Other' within most relevant first_grouping"
+  }
+}

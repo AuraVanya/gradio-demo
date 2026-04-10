@@ -200,24 +200,19 @@ Your output MUST be business-friendly, actionable, and transparent for insurance
 YOUR TASK:
 Analyze the incoming loss notification and produce a structured triage decision that handlers can act on immediately.
 
-CRITICAL REQUIREMENTS:
-1. ✅ Use ONLY approved insurance product taxonomy (NO free-text categories)
-2. ✅ Explain severity with 2-4 clear drivers showing impact level (High/Medium/Low)
-3. ✅ Identify key signals (document_type, financial_indicator, incident_severity, etc.)
-4. ✅ Provide actionable next steps (system-level AND handler-level)
-5. ✅ Use ONLY real Nacora handlers from the pool below
-6. ✅ Flag ALL missing data in data_gaps with importance ratings (Critical/High/Medium/Low)
-7. ✅ Show transparent decision logic (summary + 1-3 key factors)
+CRITICAL RULES:
+1. Use ONLY the real Nacora handler pool provided below - NEVER invent handler names
+2. Use ONLY the exact LoB taxonomy codes provided - NEVER create new categories
+3. Flag ALL missing information explicitly in data_gaps
+4. Provide numeric severity scores (0-100) with weighted factors (primary/secondary/minor)
+5. Name specific handlers with contact details in recommended actions
+6. Handle thin/ambiguous inputs gracefully - never fail
 
 === NACORA HANDLER POOL (34 handlers) ===
 {chr(10).join(handler_list)}
 
-=== APPROVED INSURANCE PRODUCT TAXONOMY ===
-Use ONLY these categories. NEVER generate custom/free-text types.
-{chr(10).join(taxonomy_list)}
-
-Classification Display Format: "First Grouping – Product Name"
-Example: "Property – Construction all risk" or "Marine Cargo – Marine Cargo via GFH"
+=== LoB TAXONOMY (16 lines of business) ===
+{chr(10).join(lob_list)}
 
 === COUNTRY TO REGION MAPPING ===
 {chr(10).join(region_examples)}
@@ -284,123 +279,126 @@ Check for these fields and flag as not_detected if missing:
 - third party involvement
 - date of loss
 
-=== OUTPUT FORMAT (STRICT JSON - BUSINESS-ALIGNED) ===
-Return ONLY valid JSON matching this EXACT structure. NO markdown. NO chain-of-thought.
+=== OUTPUT FORMAT (STRICT JSON) ===
+Return ONLY valid JSON. NO markdown code fences. NO text outside JSON.
+Avoid chain-of-thought. Do NOT output step-by-step reasoning.
 
 {{
-  "fnol_id": "FNOL-260410-0001",
-  "timestamp": "2026-04-10T14:30:00Z",
-  "detected_language": {{
-    "code": "EN",
-    "name": "English",
-    "confidence": 95
-  }},
-  "claim_type": {{
-    "first_grouping": "Marine Cargo",
-   "first_grouping_code": "MCARGO",
-    "product_name": "Marine Cargo via GFH",
-    "product_code": "MCARGO-002",
-    "display_format": "Marine Cargo – Marine Cargo via GFH"
+  "detected_language": {{"code": "EN", "name": "English", "confidence": 95}},
+  "classification": {{
+    "lob_code": "marine_cargo",
+    "lob_display_name": "Marine Cargo",
+    "lob_local_name": "Goederentransport",
+    "lob_local_language": "NL",
+    "insurance_product": "Open Cover",
+    "confidence": 92,
+    "reasoning": "Classification reasoning"
   }},
   "severity": {{
     "level": "High",
-    "score": 65,
-    "drivers": [
-      {{"driver": "High-value shipment (€240,000)", "impact": "High"}},
-      {{"driver": "Total loss claimed by insured", "impact": "High"}},
-      {{"driver": "Time-sensitive settlement required", "impact": "Medium"}}
+    "score": 78,
+    "confidence": 85,
+    "factors": [
+      {{"text": "Total loss claimed", "weight": "primary"}},
+      {{"text": "Time-sensitive settlement", "weight": "secondary"}},
+      {{"text": "Contractual penalties at stake", "weight": "minor"}}
     ]
   }},
-  "key_signals_identified": [
-    {{"signal_type": "financial_indicator", "description": "Loss value €240,000 detected"}},
-    {{"signal_type": "document_type", "description": "Bill of Lading reference found"}},
-    {{"signal_type": "incident_severity", "description": "Total loss keywords present"}},
-    {{"signal_type": "geographic_marker", "description": "Rotterdam port mentioned"}}
-  ],
-  "decision_logic": {{
-    "summary": "High-value marine cargo claim requiring specialized handler with cargo expertise",
-    "key_factors": [
-      "Value exceeds €200K threshold for high priority",
-      "Marine cargo product confirmed from B/L reference",
-      "Geographic match: Netherlands → Benelux region"
-    ]
-  }},
-  "system_next_action": {{
-    "action": "Assign to specialized cargo handler for immediate processing",
-    "rationale": "High value and total loss claim requires experienced handler within 24h SLA"
-  }},
-  "handler_next_action": {{
-    "action": "Request Bill of Lading, CMR note, and damage survey within 24 hours",
-    "priority": "Urgent"
-  }},
-  "confidence": {{
-    "score": 88,
-    "explanation": "High confidence due to clear product type, complete financial data, and specific location",
-    "factors_affecting": [
-      "Complete documentation references provided",
-      "Clear geographic and product indicators",
-      "Structured input format"
-    ]
-  }},
-  "handlers": {{
-    "primary": {{
-      "handler_id": "H-BNL-002",
-      "name": "Lars van der Berg",
-      "match_reason": "Benelux marine cargo specialist with matching language (NL)",
-      "contact_email": "l.vandenberg@nacora.com",
-      "contact_phone": "+31 10 1234 5612"
-    }},
-    "secondary": null
-  }},
-  "data_gaps": [
-    {{"field": "policy_number", "prompt": "Please provide the policy number or certificate reference", "importance": "Critical"}},
-    {{"field": "date_of_loss", "prompt": "Please confirm the exact date when the loss occurred", "importance": "High"}},
-    {{"field": "third_party_liability", "prompt": "Is there any third-party liability involved?", "importance": "Medium"}}
-  ],
   "financial": {{
     "amount": 240000,
     "currency": "EUR",
-    "original_text": "€240,000"
+    "original_text": "EUR 240,000",
+    "confidence": 95
   }},
   "geography": {{
     "country": "NL",
     "country_name": "Netherlands",
     "city": "Rotterdam",
-    "region": "Benelux"
+    "specific_location": "Rotterdam port",
+    "region": "Benelux",
+    "confidence": 95
   }},
-  "policy": {{
-    "number": null,
-    "type": "Marine Cargo Open Cover"
+  "policy": {{"number": "NC-MA-2024-8871", "confidence": 98}},
+  "recommended_action": {{
+    "action": "assign_to_handler_urgent",
+    "label": "Assign Urgently to Handler",
+    "reasoning": "Decision: Approved (Urgent)\nKey Reasons:\n- ...\n- ...\nSupporting Data:\n- ...\nConfidence Score: 82% – High Confidence\nConfidence Drivers: ...\nRecommended Action: ...",
+    "steps": ["Step 1...", "Step 2...", "Step 3..."]
+  }},
+  "handlers": {{
+    "primary": {{
+      "handler_id": "H-BNL-001",
+      "match_reason": "Benelux region marine cargo specialist"
+    }},
+    "secondary": {{
+      "handler_id": "H-GL-004",
+      "match_reason": "Survey coordinator",
+      "role_in_claim": "Survey Coordinator"
+    }}
+  }},
+  "data_gaps": [
+    {{"field": "policy_number", "prompt": "Please provide the policy number"}}
+  ],
+  "reasoning_trace": {{
+    "summary": "Short business summary only. No step-by-step reasoning.",
+    "confidence_overall": 88
   }},
   "bms_integration": {{
-    "policy_number_field": "Links to existing policy/certificate in NacoraHub",
-    "handler_id_field": "Pre-fills Assigned To: H-BNL-002 (Lars van der Berg)",
-    "product_code_field": "Maps to BMS product code MCARGO-002",
-    "severity_field": "Sets SLA: High = 24h response required"
+    "policy_number_field": "Links to existing policy record in NacoraHub",
+    "handler_id_field": "Pre-fills Assigned To field and triggers workflow step",
+    "lob_code_field": "Maps to BMS product taxonomy (tigerlab traffic codes)",
+    "severity_field": "Sets SLA timer: Critical=4h, High=24h, Medium=72h, Low=5d",
+    "financial_field": "Pre-fills Estimated Loss in claim financials with correct currency",
+    "open_cover_flag": "Triggers Open Cover handling module for certificate management"
   }}
 }}
 
-=== SIGNAL TYPES (For key_signals_identified) ===
-- "document_type": Document references (B/L, CMR, invoice, medical report, certificate)
-- "financial_indicator": Amount, currency, value mentions, financial thresholds
-- "incident_severity": Total loss, partial damage, fire, explosion, injury, fatality
-- "data_quality": Complete vs incomplete, structured vs unstructured input
-- "policy_type": Open cover, single risk, global program, local policy
-- "geographic_marker": Country, city, port, warehouse, specific location
-- "other": Any other relevant signal
+=== RECOMMENDED ACTION GUIDELINES ===
+- assign_to_handler: Standard assignment
+- assign_to_handler_urgent: High/Critical + urgent indicators
+- escalate: Critical severity or multi-jurisdictional
+- request_documentation: Insufficient information
+- request_survey: Physical inspection needed
+- reject: Coverage issues or fraud indicators
 
-=== NEXT ACTION PRIORITY LEVELS ===
-- "Immediate": Requires action within 4 hours (Critical severity, life-threatening)
-- "Urgent": Requires action within 24 hours (High severity, time-sensitive)
-- "Standard": Normal processing timeline (Medium severity)
-- "Low": Can be queued (Low severity, administrative)
+The 'steps' array must include SPECIFIC actions naming the handler:
+Example: "Assign to Markus Breitner (H-DACH-001) — contact m.breitner@nacora.com. Request CMR note and temperature log within 24h."
+
+=== ACTION REASONING TEMPLATE ===
+Populate recommended_action.reasoning using this exact structure:
+
+Decision: <Approved | Approved (Urgent) | Escalated | Pending Information | Rejected>
+Key Reasons:
+- <2–4 concise bullets tied to specific inputs or rules>
+Supporting Data:
+- <specific inputs or rules used>
+Confidence Score: <percentage and label, e.g., 82% – High Confidence>
+Confidence Drivers: <short reason for confidence>
+Recommended Action: <what to do next, include time expectation if urgent>
+
+Decision mapping:
+- assign_to_handler -> Approved
+- assign_to_handler_urgent -> Approved (Urgent)
+- escalate -> Escalated
+- request_documentation -> Pending Information
+- reject -> Rejected
+
+=== LANGUAGE DETECTION ===
+Detect input language and set:
+- detected_language.code (ISO code)
+- detected_language.name (English name)
+- detected_language.confidence (0-100)
+- classification.lob_local_name (in detected language)
+- classification.lob_local_language (detected language code)
+
+Support: EN, DE, NL, FR, ES, PT, IT, TR, AR, ZH, JA, SV, NO, DA, FI, and others.
 
 === EDGE CASES ===
-- Thin input: Low confidence scores, extensive data_gaps, importance ratings
-- No currency: Set financial.amount as null
-- Unknown country: Use region "Global", flag geography data gaps
-- Trade Credit/PI keywords: ALWAYS route to H-GL-003
-- Survey keywords: Add H-GL-004 as secondary handler"""
+- Thin input ("a container fell"): Low confidence, extensive data_gaps
+- No currency: flag financial.amount as null, confidence 0
+- Unknown country: flag geography fields, use region "Global"
+- Trade credit/PI: ALWAYS route to H-GL-003 regardless of region
+- Survey keywords (surveyor, inspection, dispatch, assessment): Add H-GL-004 as secondary"""
 
     return prompt
 
@@ -413,13 +411,10 @@ def _invoke_bedrock(fnol_text: str) -> Dict:
 {fnol_text}
 
 Return the complete JSON triage output as specified. Remember:
-- Use ONLY approved product taxonomy (no free-text categories)
-- Use ONLY real handlers from the handler pool
-- Provide 2-4 severity drivers with clear impact levels
-- Include key_signals_identified and decision_logic
-- Provide both system_next_action AND handler_next_action
-- Flag all missing data in data_gaps with importance ratings
-- Include confidence score with explanation
+- Use ONLY real handlers from the pool
+- Use ONLY real LoB codes from taxonomy
+- Flag ALL missing fields in data_gaps
+- Include handler email and phone in action steps
 - NO markdown code fences - just pure JSON"""
 
     try:
@@ -545,76 +540,76 @@ def triage_fnol(
             "fnol_id": _generate_fnol_id(),
             "timestamp": datetime.now().isoformat() + "Z",
             "detected_language": {"code": "EN", "name": "English", "confidence": 50},
-            "claim_type": {
-                "first_grouping": "Unclassified",
-                "first_grouping_code": "UNC",
-                "product_name": "Insufficient Information",
-                "product_code": "UNC-000",
-                "display_format": "Unclassified – Insufficient Information"
+            "classification": {
+                "lob_code": "unclassified",
+                "lob_display_name": "Unclassified",
+                "lob_local_name": "Unclassified",
+                "lob_local_language": "EN",
+                "insurance_product": "not_detected",
+                "confidence": 0,
+                "reasoning": "Insufficient input provided for classification"
             },
             "severity": {
                 "level": "Low",
                 "score": 0,
-                "drivers": [
-                    {"driver": "No claim details provided", "impact": "Low"}
-                ]
+                "confidence": 0,
+                "factors": [{"text": "No information provided", "weight": "minor"}]
             },
-            "key_signals_identified": [
-                {"signal_type": "data_quality", "description": "Input below minimum length threshold"}
-            ],
-            "decision_logic": {
-                "summary": "Cannot triage without claim information",
-                "key_factors": [
-                    "Input length insufficient for analysis",
-                    "No claim description provided"
-                ]
+            "financial": {"amount": None, "currency": None, "original_text": None, "confidence": 0},
+            "geography": {
+                "country": None, "country_name": None, "city": None,
+                "specific_location": None, "region": "Global", "confidence": 0
             },
-            "system_next_action": {
-                "action": "Request complete FNOL submission with all required fields",
-                "rationale": "Insufficient data to perform automated triage"
-            },
-            "handler_next_action": {
-                "action": "Contact submitter to request full claim details",
-                "priority": "Standard"
-            },
-            "confidence": {
-                "score": 0,
-                "explanation": "No confidence due to missing claim information",
-                "factors_affecting": [
-                    "Input below minimum threshold",
-                    "No extractable claim data"
+            "policy": {"number": None, "confidence": 0},
+            "recommended_action": {
+                "action": "request_documentation",
+                "label": "Request Documentation",
+                "reasoning": (
+                    "Decision: Pending Information\n"
+                    "Key Reasons:\n"
+                    "- FNOL details are missing or too brief\n"
+                    "- Policy, location, and loss value not confirmed\n"
+                    "Supporting Data:\n"
+                    "- Input length below minimum threshold\n"
+                    "Confidence Score: 40% – Low Confidence\n"
+                    "Confidence Drivers: Limited and inconsistent data\n"
+                    "Recommended Action: Request full loss notice, policy number, date of loss, "
+                    "location, and estimated value before triage."
+                ),
+                "steps": [
+                    "Request complete loss notification with details",
+                    "Obtain policy number, date of loss, and location",
+                    "Request estimated value and description of damage"
                 ]
             },
             "handlers": {
                 "primary": {
                     "handler_id": "H-GL-002",
-                    "name": "David Okonkwo",
                     "match_reason": "Global escalation for incomplete submission",
-                    "contact_email": "d.okonkwo@nacora.com",
-                    "contact_phone": "+44 20 1234 5632"
-                },
-                "secondary": null
+                    "name": "David Okonkwo",
+                    "email": "d.okonkwo@nacora.com",
+                    "phone": "+44 20 1234 5632",
+                    "role": "Manager Global Handler"
+                }
             },
             "data_gaps": [
-                {"field": "claim_description", "prompt": "Please provide a description of what happened", "importance": "Critical"},
-                {"field": "policy_number", "prompt": "Please provide the policy number", "importance": "Critical"},
-                {"field": "date_of_loss", "prompt": "Please provide the date of loss", "importance": "Critical"},
-                {"field": "location", "prompt": "Please provide where the loss occurred", "importance": "High"},
-                {"field": "estimated_value", "prompt": "Please provide the estimated value of the loss", "importance": "High"}
+                {"field": "claim_description", "prompt": "Please provide a description of what happened"},
+                {"field": "policy_number", "prompt": "Please provide the policy number"},
+                {"field": "date_of_loss", "prompt": "Please provide the date of loss"},
+                {"field": "location", "prompt": "Please provide where the loss occurred"},
+                {"field": "estimated_value", "prompt": "Please provide the estimated value of the loss"}
             ],
-            "financial": {"amount": None, "currency": None, "original_text": None},
-            "geography": {
-                "country": None,
-                "country_name": None,
-                "city": None,
-                "region": "Global"
+            "reasoning_trace": {
+                "summary": "Input too short for meaningful triage",
+                "confidence_overall": 0
             },
-            "policy": {"number": None, "type": None},
             "bms_integration": {
                 "policy_number_field": "Links to existing policy record in NacoraHub",
-                "handler_id_field": "Pre-fills Assigned To: H-GL-002 (David Okonkwo)",
-                "product_code_field": "Maps to BMS product code UNC-000",
-                "severity_field": "Sets SLA: Low = 5 days response"
+                "handler_id_field": "Pre-fills Assigned To field",
+                "lob_code_field": "Maps to BMS product taxonomy",
+                "severity_field": "Sets SLA timer in BMS queue",
+                "financial_field": "Pre-fills Estimated Loss",
+                "open_cover_flag": "Triggers Open Cover module"
             }
         }
         return json.dumps(fallback, ensure_ascii=False, indent=2)
@@ -638,71 +633,69 @@ def triage_fnol(
             "fnol_id": _generate_fnol_id(),
             "timestamp": datetime.now().isoformat() + "Z",
             "detected_language": {"code": "EN", "name": "English", "confidence": 50},
-            "claim_type": {
-                "first_grouping": "System Error",
-                "first_grouping_code": "ERR",
-                "product_name": "Triage System Error",
-                "product_code": "ERR-001",
-                "display_format": "System Error – Triage System Error"
+            "classification": {
+                "lob_code": "unclassified",
+                "lob_display_name": "Unclassified",
+                "lob_local_name": "Unclassified",
+                "lob_local_language": "EN",
+                "insurance_product": "not_detected",
+                "confidence": 0,
+                "reasoning": f"Triage error: {str(exc)[:100]}"
             },
             "severity": {
                 "level": "Medium",
                 "score": 50,
-                "drivers": [
-                    {"driver": "Automated triage system encountered an error", "impact": "High"},
-                    {"driver": "Manual review required", "impact": "Medium"}
-                ]
+                "confidence": 0,
+                "factors": [{"text": "Triage system error - manual review needed", "weight": "primary"}]
             },
-            "key_signals_identified": [
-                {"signal_type": "data_quality", "description": f"Triage error: {str(exc)[:80]}"}
-            ],
-            "decision_logic": {
-                "summary": "System error prevented automated triage - escalating for manual review",
-                "key_factors": [
-                    "AI triage system encountered exception",
-                    "Requires senior handler intervention"
-                ]
+            "financial": {"amount": None, "currency": None, "original_text": None, "confidence": 0},
+            "geography": {
+                "country": None, "country_name": None, "city": None,
+                "specific_location": None, "region": "Global", "confidence": 0
             },
-            "system_next_action": {
-                "action": "Escalate to senior handler for manual triage",
-                "rationale": "Automated system failed - human review needed"
-            },
-            "handler_next_action": {
-                "action": "Review original FNOL text and perform manual triage",
-                "priority": "Urgent"
-            },
-            "confidence": {
-                "score": 0,
-                "explanation": "No confidence due to system error",
-                "factors_affecting": [
-                    "Triage system exception",
-                    f"Error: {str(exc)[:50]}"
+            "policy": {"number": None, "confidence": 0},
+            "recommended_action": {
+                "action": "escalate",
+                "label": "Escalate to Manager",
+                "reasoning": (
+                    "Decision: Escalated\n"
+                    "Key Reasons:\n"
+                    "- System error prevented automated triage\n"
+                    "Supporting Data:\n"
+                    f"- Error: {str(exc)[:120]}\n"
+                    "Confidence Score: 30% – Low Confidence\n"
+                    "Confidence Drivers: Triage did not complete\n"
+                    "Recommended Action: Escalate to a senior handler and re-run triage after "
+                    "verifying system connectivity."
+                ),
+                "steps": [
+                    "Contact David Okonkwo (H-GL-002) — d.okonkwo@nacora.com",
+                    "Forward original FNOL text for manual review",
+                    "Check system logs and retry if needed"
                 ]
             },
             "handlers": {
                 "primary": {
                     "handler_id": "H-GL-002",
-                    "name": "David Okonkwo",
                     "match_reason": "Global escalation for system error",
-                    "contact_email": "d.okonkwo@nacora.com",
-                    "contact_phone": "+44 20 1234 5632"
-                },
-                "secondary": null
+                    "name": "David Okonkwo",
+                    "email": "d.okonkwo@nacora.com",
+                    "phone": "+44 20 1234 5632",
+                    "role": "Manager Global Handler"
+                }
             },
             "data_gaps": [],
-            "financial": {"amount": None, "currency": None, "original_text": None},
-            "geography": {
-                "country": None,
-                "country_name": None,
-                "city": None,
-                "region": "Global"
+            "reasoning_trace": {
+                "summary": "System error during AI triage",
+                "confidence_overall": 0
             },
-            "policy": {"number": None, "type": None},
             "bms_integration": {
                 "policy_number_field": "Links to existing policy record in NacoraHub",
-                "handler_id_field": "Pre-fills Assigned To: H-GL-002 (David Okonkwo)",
-                "product_code_field": "Maps to BMS product code ERR-001",
-                "severity_field": "Sets SLA: Medium = 72h response (manual triage needed)"
+                "handler_id_field": "Pre-fills Assigned To field",
+                "lob_code_field": "Maps to BMS product taxonomy",
+                "severity_field": "Sets SLA timer in BMS queue",
+                "financial_field": "Pre-fills Estimated Loss",
+                "open_cover_flag": "Triggers Open Cover module"
             }
         }
         return json.dumps(fallback, ensure_ascii=False, indent=2)

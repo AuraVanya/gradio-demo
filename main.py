@@ -301,78 +301,97 @@ def triage_and_parse(
     try:
         data = json.loads(json_str)
     except json.JSONDecodeError:
-        return json_str, "", "", "", "", "", "", "", "Error parsing JSON", "Unknown"
+        return json_str, "", "", "", "", "", "", "", "", "", ""
 
-    # Extract classification
-    classification = data.get("classification", {})
-    claim_type = f"{classification.get('lob_display_name', '')} ({classification.get('lob_code', '')})"
+    # === 1. CLAIM TYPE (Top Priority) ===
+    claim_type_data = data.get("claim_type", {})
+    claim_type = claim_type_data.get("display_format", "Unknown")
 
-    # Extract insurance product (replaces claim_subtype)
-    insurance_product = classification.get("insurance_product", "")
-
-    # Extract severity with score
+    # === 2. SEVERITY (with drivers) ===
     severity_data = data.get("severity", {})
     severity_level = severity_data.get("level", "")
     severity_score = severity_data.get("score", 0)
     severity_display = f"{severity_level} ({severity_score}/100)"
 
-    # Extract severity factors with weights
-    severity_factors = severity_data.get("factors", [])
-    severity_factors_text = "\n".join([
-        f"[{item.get('weight', '').upper()}] {item.get('text', '')}"
-        for item in severity_factors
+    # Severity drivers with impact levels
+    severity_drivers = severity_data.get("drivers", [])
+    drivers_text = "\n".join([
+        f"• {driver.get('driver', '')} [{driver.get('impact', '').upper()}]"
+        for driver in severity_drivers
     ])
 
-    # Extract recommended action
-    action_data = data.get("recommended_action", {})
-    action_label = action_data.get("label", "")
-    action_reasoning = action_data.get("reasoning", "")
+    # === 3. KEY SIGNALS IDENTIFIED ===
+    signals = data.get("key_signals_identified", [])
+    signals_text = "\n".join([
+        f"[{signal.get('signal_type', 'other').replace('_', ' ').title()}] {signal.get('description', '')}"
+        for signal in signals
+    ]) if signals else "No specific signals extracted"
 
-    # Extract steps as formatted list
-    steps = action_data.get("steps", [])
-    steps_text = "\n".join([f"• {step}" for step in steps]) if steps else ""
-    action_full = f"{action_reasoning}\n\nNext Steps:\n{steps_text}" if steps else action_reasoning
+    # === 4. DECISION LOGIC ===
+    decision = data.get("decision_logic", {})
+    decision_summary = decision.get("summary", "")
+    key_factors = decision.get("key_factors", [])
+    decision_text = f"{decision_summary}\n\nKey Factors:\n" + "\n".join([
+        f"• {factor}" for factor in key_factors
+    ])
 
-    # Extract handler information with full details
+    # === 5. SYSTEM NEXT ACTION ===
+    system_action = data.get("system_next_action", {})
+    system_action_text = f"{system_action.get('action', '')}\n\nRationale: {system_action.get('rationale', '')}"
+
+    # === 6. HANDLER NEXT ACTION ===
+    handler_action = data.get("handler_next_action", {})
+    handler_action_text = f"[{handler_action.get('priority', 'Standard').upper()}] {handler_action.get('action', '')}"
+
+    # === 7. CONFIDENCE SCORE ===
+    confidence_data = data.get("confidence", {})
+    confidence_score = confidence_data.get("score", 0)
+    confidence_explanation = confidence_data.get("explanation", "")
+    conf_factors = confidence_data.get("factors_affecting", [])
+    confidence_text = f"{confidence_score}% — {confidence_explanation}\n\nFactors:\n" + "\n".join([
+        f"• {factor}" for factor in conf_factors
+    ])
+
+    # === 8. HANDLERS ===
     handlers = data.get("handlers", {})
     primary = handlers.get("primary", {})
     secondary = handlers.get("secondary")
 
     handler_summary = f"PRIMARY: {primary.get('name', '')} ({primary.get('handler_id', '')})\n"
-    handler_summary += f"Role: {primary.get('role', '')}\n"
-    handler_summary += f"Email: {primary.get('email', '')} | Phone: {primary.get('phone', '')}\n"
+    handler_summary += f"Email: {primary.get('contact_email', '')} | Phone: {primary.get('contact_phone', '')}\n"
     handler_summary += f"Reason: {primary.get('match_reason', '')}"
 
     if secondary:
         handler_summary += f"\n\nSECONDARY: {secondary.get('name', '')} ({secondary.get('handler_id', '')})\n"
-        handler_summary += f"Role: {secondary.get('role', '')}\n"
-        handler_summary += f"Email: {secondary.get('email', '')} | Phone: {secondary.get('phone', '')}\n"
+        handler_summary += f"Email: {secondary.get('contact_email', '')} | Phone: {secondary.get('contact_phone', '')}\n"
         handler_summary += f"Reason: {secondary.get('match_reason', '')}"
 
-    # Extract data gaps for "What We Still Need" panel
+    # === 9. DATA GAPS ===
     data_gaps = data.get("data_gaps", [])
     if data_gaps:
         gaps_text = "\n".join([
-            f"• {gap.get('field', 'Unknown')}: {gap.get('prompt', 'Please provide this information')}"
+            f"[{gap.get('importance', 'MEDIUM').upper()}] {gap.get('field', 'Unknown')}: {gap.get('prompt', '')}"
             for gap in data_gaps
         ])
     else:
         gaps_text = "✓ All key information detected"
 
-    # Extract language detection
+    # === 10. LANGUAGE DETECTION ===
     detected_lang = data.get("detected_language", {})
-    lang_display = f"{detected_lang.get('name', 'Unknown')} ({detected_lang.get('code', 'N/A')}) - {detected_lang.get('confidence', 0)}% confidence"
+    lang_display = f"{detected_lang.get('name', 'Unknown')} ({detected_lang.get('code', 'N/A')}) — {detected_lang.get('confidence', 0)}% confidence"
 
     return (
         json_str,
         claim_type,
-        insurance_product,
         severity_display,
-        action_label,
-        severity_factors_text,
-        action_full,
+        drivers_text,
+        signals_text,
+        decision_text,
+        system_action_text,
+        handler_action_text,
         handler_summary,
         gaps_text,
+        confidence_text,
         lang_display,
     )
 
@@ -450,7 +469,7 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
 
             # Right: output panel
             with gr.Column(scale=4, elem_classes="panel"):
-                gr.Markdown("Structured triage card", elem_classes="label")
+                gr.Markdown("Business-Aligned Triage Card", elem_classes="label")
 
                 # Language detection banner
                 lang_out = gr.Textbox(
@@ -460,48 +479,75 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
                     lines=1,
                 )
 
-                with gr.Row():
-                    claim_type_out = gr.Textbox(
-                        label="Claim type",
-                        interactive=False,
-                        elem_classes="card",
-                    )
-                    claim_subtype_out = gr.Textbox(
-                        label="Insurance Product",
-                        interactive=False,
-                        elem_classes="card",
-                    )
+                # === PRIORITY 1: Claim Type ===
+                claim_type_out = gr.Textbox(
+                    label="Claim Type",
+                    interactive=False,
+                    elem_classes="card",
+                    lines=1,
+                )
+
+                # === PRIORITY 2: Severity (with drivers) ===
                 with gr.Row():
                     severity_out = gr.Textbox(
                         label="Severity",
                         interactive=False,
                         elem_classes="card",
+                        lines=1,
                     )
-                    action_out = gr.Textbox(
-                        label="Recommended action",
+                    confidence_out = gr.Textbox(
+                        label="Confidence Score",
                         interactive=False,
                         elem_classes="card",
+                        lines=3,
                     )
-                severity_factors_out = gr.Textbox(
-                    label="Severity factors",
-                    lines=6,
-                    interactive=False,
-                    elem_classes="card",
-                )
-                action_reasoning_out = gr.Textbox(
-                    label="Action reasoning",
-                    lines=5,
-                    interactive=False,
-                    elem_classes="card",
-                )
-                handler_out = gr.Textbox(
-                    label="Recommended handler",
+
+                severity_drivers_out = gr.Textbox(
+                    label="Severity Drivers (Why this severity?)",
                     lines=4,
                     interactive=False,
                     elem_classes="card",
                 )
 
-                # What We Still Need panel (REQ-08)
+                # === PRIORITY 3: Recommended Next Actions ===
+                system_action_out = gr.Textbox(
+                    label="Recommended Next Action (System-Level)",
+                    lines=3,
+                    interactive=False,
+                    elem_classes="card",
+                )
+
+                handler_action_out = gr.Textbox(
+                    label="Handler Recommendation (User-Level)",
+                    lines=2,
+                    interactive=False,
+                    elem_classes="card",
+                )
+
+                # === PRIORITY 4: Handler Assignment ===
+                handler_out = gr.Textbox(
+                    label="Assigned Handler",
+                    lines=4,
+                    interactive=False,
+                    elem_classes="card",
+                )
+
+                # === PRIORITY 5: Supporting Evidence ===
+                signals_out = gr.Textbox(
+                    label="Key Signals Identified",
+                    lines=4,
+                    interactive=False,
+                    elem_classes="card",
+                )
+
+                decision_logic_out = gr.Textbox(
+                    label="Decision Summary",
+                    lines=4,
+                    interactive=False,
+                    elem_classes="card",
+                )
+
+                # === PRIORITY 6: Data Quality ===
                 gaps_out = gr.Textbox(
                     label="What We Still Need",
                     lines=4,
@@ -510,8 +556,8 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
                 )
 
                 json_out = gr.Textbox(
-                    label="Structured JSON output",
-                    lines=12,
+                    label="Structured JSON Output",
+                    lines=10,
                     interactive=False,
                     elem_classes="panel-soft",
                 )
@@ -533,13 +579,15 @@ with gr.Blocks(css=CSS, title="Claimsprint — FNOL Triage") as demo:
             outputs=[
                 json_out,
                 claim_type_out,
-                claim_subtype_out,
                 severity_out,
-                action_out,
-                severity_factors_out,
-                action_reasoning_out,
+                severity_drivers_out,
+                signals_out,
+                decision_logic_out,
+                system_action_out,
+                handler_action_out,
                 handler_out,
                 gaps_out,
+                confidence_out,
                 lang_out,
             ],
         )
