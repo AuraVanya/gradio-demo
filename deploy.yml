@@ -1,0 +1,47 @@
+service: gradio-demo
+image: gradio-demo:latest
+
+web:
+  hosts:
+    - 56.68.28.55
+  options:
+    network: "public"
+
+volumes:
+  - "/tmp/gradio:/tmp/gradio"
+
+env:
+  clear:
+    HOME: /home/app
+    PYTHONUNBUFFERED: "1"
+  secret:
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
+    - AWS_DEFAULT_REGION
+
+servers:
+  web:
+    hosts:
+      - 56.68.28.55
+    user: ubuntu
+    ssh_options: "-i ~/.ssh/tigerlab_i2go_uat.pem"
+    labels:
+      traefik.http.routers.gradio.rule: "Host(`team-coral-workshop.i2go.io`)"
+      traefik.http.services.gradio.loadbalancer.server.port: "7860"
+
+accessories:
+  traefik:
+    image: traefik:v2.11
+    port: "80:80"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    options:
+      publish:
+        - "443:443"
+        - "80:80"
+
+healthcheck:
+  path: /
+  interval: 30
+  timeout: 10
+  max_attempts: 3

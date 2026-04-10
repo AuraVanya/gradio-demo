@@ -23,7 +23,7 @@ acord_extractor = gr.Interface(
         )
     ],
     description="Upload an ACORD 125 Form. The form will be sent to S3, processed by AWS Textract, and Bedrock will structure the data into a standard JSON format.",
-    flagging_mode='never'
+    allow_flagging='never'
 )
 
 # Motor Quote Image Analysis Gradio Interface
@@ -47,7 +47,7 @@ motor_quote = gr.Interface(
             wrap=True)
     ],
     description="Upload a vehicle image and a driver's license image. The images will be sent to S3, processed by AWS Rekognition, and Bedrock will structure the data into a standard JSON format.",
-    flagging_mode='never'
+    allow_flagging='never'
 )
 
 # Combine both interfaces into a tabbed layout
@@ -62,4 +62,4 @@ demo = gr.TabbedInterface([
     theme=custom_theme
 )
 
-demo.launch(debug=True, share=True)
+demo.launch(debug=False, share=False, server_name="0.0.0.0", server_port=7860)
